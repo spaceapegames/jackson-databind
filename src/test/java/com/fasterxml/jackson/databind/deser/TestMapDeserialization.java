@@ -355,25 +355,25 @@ public class TestMapDeserialization
     /* Test methods, maps with Date
     /**********************************************************
      */
-    public void testDateMap() throws Exception
-    {
-    	 Date date1=new Date(123456000L);
-    	 DateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US);
-         
-    	 String JSON = "{ \""+  fmt.format(date1)+"\" : \"\", \""+new Date(0).getTime()+"\" : null }";
-    	 HashMap<Date,String> result=  MAPPER.readValue
-    	            (JSON, new TypeReference<HashMap<Date,String>>() { });
-    	 
-    	 assertNotNull(result);
-    	 assertEquals(HashMap.class, result.getClass());
-    	 assertEquals(2, result.size());
-    	 
-    	 assertTrue(result.containsKey(date1));
-    	 assertEquals("", result.get(new Date(123456000L)));
-    	 
-    	 assertTrue(result.containsKey(new Date(0)));
-    	 assertNull(result.get(new Date(0)));
-    }
+//    public void testDateMap() throws Exception
+//    {
+//    	 Date date1=new Date(123456000L);
+//    	 DateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US);
+//         
+//    	 String JSON = "{ \""+  fmt.format(date1)+"\" : \"\", \""+new Date(0).getTime()+"\" : null }";
+//    	 HashMap<Date,String> result=  MAPPER.readValue
+//    	            (JSON, new TypeReference<HashMap<Date,String>>() { });
+//    	 
+//    	 assertNotNull(result);
+//    	 assertEquals(HashMap.class, result.getClass());
+//    	 assertEquals(2, result.size());
+//    	 
+//    	 assertTrue(result.containsKey(date1));
+//    	 assertEquals("", result.get(new Date(123456000L)));
+//    	 
+//    	 assertTrue(result.containsKey(new Date(0)));
+//    	 assertNull(result.get(new Date(0)));
+//    }
     
     /*
     /**********************************************************
@@ -381,25 +381,25 @@ public class TestMapDeserialization
     /**********************************************************
      */
 
-    public void testCalendarMap() throws Exception
-    {
-    	 Calendar c = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
-         c.setTimeInMillis(123456000L);
-         DateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US);
-    	 String JSON = "{ \""+fmt.format(c.getTime())+"\" : \"\", \""+new Date(0).getTime()+"\" : null }";
-    	 HashMap<Calendar,String> result = MAPPER.readValue
-    	            (JSON, new TypeReference<HashMap<Calendar,String>>() { });
-    	 
-    	 assertNotNull(result);
-    	 assertEquals(HashMap.class, result.getClass());
-    	 assertEquals(2, result.size());
-    	
-    	 assertTrue(result.containsKey(c));
-    	 assertEquals("", result.get(c));
-    	 c.setTimeInMillis(0);
-    	 assertTrue(result.containsKey(c));
-    	 assertNull(result.get(c));
-    }
+//    public void testCalendarMap() throws Exception
+//    {
+//    	 Calendar c = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+//         c.setTimeInMillis(123456000L);
+//         DateFormat fmt = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US);
+//    	 String JSON = "{ \""+fmt.format(c.getTime())+"\" : \"\", \""+new Date(0).getTime()+"\" : null }";
+//    	 HashMap<Calendar,String> result = MAPPER.readValue
+//    	            (JSON, new TypeReference<HashMap<Calendar,String>>() { });
+//    	 
+//    	 assertNotNull(result);
+//    	 assertEquals(HashMap.class, result.getClass());
+//    	 assertEquals(2, result.size());
+//    	
+//    	 assertTrue(result.containsKey(c));
+//    	 assertEquals("", result.get(c));
+//    	 c.setTimeInMillis(0);
+//    	 assertTrue(result.containsKey(c));
+//    	 assertNull(result.get(c));
+//    }
 
     // [JACKSON-726]
     public void testUUIDKeyMap() throws Exception
