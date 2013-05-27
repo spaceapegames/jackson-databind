@@ -155,8 +155,9 @@ public class BeanDeserializer
                 return deserializeWithObjectId(jp, ctxt);
             }
             return deserializeFromObject(jp, ctxt);
+        default:
+            throw ctxt.mappingException(getBeanClass());
         }
-        throw ctxt.mappingException(getBeanClass());
     }
 
     protected Object _missingToken(JsonParser jp, DeserializationContext ctxt)
@@ -261,6 +262,7 @@ public class BeanDeserializer
      * General version used when handling needs more advanced
      * features.
      */
+    @Override
     public Object deserializeFromObject(JsonParser jp, DeserializationContext ctxt)
         throws IOException, JsonProcessingException
     {
@@ -324,6 +326,7 @@ public class BeanDeserializer
      * due to non-guaranteed ordering possibly some other properties
      * as well.
      */
+    @Override
     protected Object _deserializeUsingPropertyBased(final JsonParser jp, final DeserializationContext ctxt)
         throws IOException, JsonProcessingException
     { 
@@ -481,9 +484,7 @@ public class BeanDeserializer
         if (_injectables != null) {
             injectValues(ctxt, bean);
         }
-
         final Class<?> activeView = _needViewProcesing ? ctxt.getActiveView() : null;
-        
         for (; jp.getCurrentToken() != JsonToken.END_OBJECT; jp.nextToken()) {
             String propName = jp.getCurrentName();
             jp.nextToken();

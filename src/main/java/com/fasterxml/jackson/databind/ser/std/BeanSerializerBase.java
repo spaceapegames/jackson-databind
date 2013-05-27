@@ -7,8 +7,8 @@ import java.util.*;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.ObjectIdGenerator;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+
 import com.fasterxml.jackson.core.*;
-import com.fasterxml.jackson.core.io.SerializedString;
 
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.introspect.Annotated;
@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.ser.impl.ObjectIdWriter;
 import com.fasterxml.jackson.databind.ser.impl.PropertyBasedObjectIdGenerator;
 import com.fasterxml.jackson.databind.ser.impl.WritableObjectId;
 import com.fasterxml.jackson.databind.util.ArrayBuilders;
+import com.fasterxml.jackson.databind.util.Converter;
 import com.fasterxml.jackson.databind.util.NameTransformer;
 
 /**
@@ -251,7 +252,7 @@ public abstract class BeanSerializerBase
      * We need to implement {@link ResolvableSerializer} to be able to
      * properly handle cyclic type references.
      */
-//  @Override
+    @Override
     public void resolve(SerializerProvider provider)
         throws JsonMappingException
     {
@@ -276,40 +277,37 @@ public abstract class BeanSerializerBase
             if (prop.hasSerializer()) {
                 continue;
             }
-            // Was the serialization type hard-coded? If so, use it
-            JavaType type = prop.getSerializationType();
-            
-            /* It not, we can use declared return type if and only if
-             * declared type is final -- if not, we don't really know
-             * the actual type until we get the instance.
-             */
-            if (type == null) {
-                type = provider.constructType(prop.getGenericPropertyType());
-                if (!type.isFinal()) {
-                    /* 18-Feb-2010, tatus: But even if it is non-final, we may
-                     *   need to retain some of type information so that we can
-                     *   accurately handle contained types
-                     */
-                    if (type.isContainerType() || type.containedTypeCount() > 0) {
-                        prop.setNonTrivialBaseType(type);
+            // [Issue#124]: allow use of converters
+            JsonSerializer<Object> ser = findConvertingSerializer(provider, prop);
+            if (ser == null) {
+                // Was the serialization type hard-coded? If so, use it
+                JavaType type = prop.getSerializationType();
+                
+                // It not, we can use declared return type if and only if declared type is final:
+                // if not, we don't really know the actual type until we get the instance.
+                if (type == null) {
+                    type = provider.constructType(prop.getGenericPropertyType());
+                    if (!type.isFinal()) {
+                        if (type.isContainerType() || type.containedTypeCount() > 0) {
+                            prop.setNonTrivialBaseType(type);
+                        }
+                        continue;
                     }
-                    continue;
                 }
-            }
-            
-            JsonSerializer<Object> ser = provider.findValueSerializer(type, prop);
-            /* 04-Feb-2010, tatu: We may have stashed type serializer for content types
-             *   too, earlier; if so, it's time to connect the dots here:
-             */
-            if (type.isContainerType()) {
-                TypeSerializer typeSer = type.getContentType().getTypeHandler();
-                if (typeSer != null) {
-                    // for now, can do this only for standard containers...
-                    if (ser instanceof ContainerSerializer<?>) {
-                        // ugly casts... but necessary
-                        @SuppressWarnings("unchecked")
-                        JsonSerializer<Object> ser2 = (JsonSerializer<Object>)((ContainerSerializer<?>) ser).withValueTypeSerializer(typeSer);
-                        ser = ser2;
+                ser = provider.findValueSerializer(type, prop);
+                /* 04-Feb-2010, tatu: We may have stashed type serializer for content types
+                 *   too, earlier; if so, it's time to connect the dots here:
+                 */
+                if (type.isContainerType()) {
+                    TypeSerializer typeSer = type.getContentType().getTypeHandler();
+                    if (typeSer != null) {
+                        // for now, can do this only for standard containers...
+                        if (ser instanceof ContainerSerializer<?>) {
+                            // ugly casts... but necessary
+                            @SuppressWarnings("unchecked")
+                            JsonSerializer<Object> ser2 = (JsonSerializer<Object>)((ContainerSerializer<?>) ser).withValueTypeSerializer(typeSer);
+                            ser = ser2;
+                        }
                     }
                 }
             }
@@ -329,7 +327,31 @@ public abstract class BeanSerializerBase
         }
     }
 
-//  @Override
+    /**
+     * Helper method that can be used to see if specified property is annotated
+     * to indicate use of a converter for property value (in case of container types,
+     * it is container type itself, not key or content type).
+     * 
+     * @since 2.2
+     */
+    protected JsonSerializer<Object> findConvertingSerializer(SerializerProvider provider,
+            BeanPropertyWriter prop)
+        throws JsonMappingException
+    {
+        final AnnotationIntrospector intr = provider.getAnnotationIntrospector();
+        if (intr != null) {
+            Object convDef = intr.findSerializationConverter(prop.getMember());
+            if (convDef != null) {
+                Converter<Object,Object> conv = provider.converterInstance(prop.getMember(), convDef);
+                JavaType delegateType = conv.getOutputType(provider.getTypeFactory());
+                JsonSerializer<?> ser = provider.findValueSerializer(delegateType, prop);
+                return new StdDelegatingSerializer(conv, delegateType, ser);
+            }
+        }
+        return null;
+    }
+    
+    @Override
     public JsonSerializer<?> createContextual(SerializerProvider provider,
             BeanProperty property)
         throws JsonMappingException
@@ -476,37 +498,61 @@ public abstract class BeanSerializerBase
         }
     }
 
-    private final void _serializeWithObjectId(Object bean,
+    protected final void _serializeWithObjectId(Object bean,
+            JsonGenerator jgen, SerializerProvider provider,
+            boolean startEndObject)
+        throws IOException, JsonGenerationException
+    {
+        final ObjectIdWriter w = _objectIdWriter;
+        WritableObjectId objectId = provider.findObjectId(bean, w.generator);
+        // If possible, write as id already
+        if (objectId.writeAsId(jgen, provider, w)) {
+            return;
+        }
+        // If not, need to inject the id:
+        Object id = objectId.generateId(bean);
+        if (w.alwaysAsId) {
+            w.serializer.serialize(id, jgen, provider);
+            return;
+        }
+        if (startEndObject) {
+            jgen.writeStartObject();
+        }
+        objectId.writeAsField(jgen, provider, w);
+        if (_propertyFilterId != null) {
+            serializeFieldsFiltered(bean, jgen, provider);
+        } else {
+            serializeFields(bean, jgen, provider);
+        }
+        if (startEndObject) {
+            jgen.writeEndObject();
+        }
+    }
+    
+    protected final void _serializeWithObjectId(Object bean,
             JsonGenerator jgen, SerializerProvider provider,
             TypeSerializer typeSer)
         throws IOException, JsonGenerationException
     {
         final ObjectIdWriter w = _objectIdWriter;
-        WritableObjectId oid = provider.findObjectId(bean, w.generator);
-        Object id = oid.id;
-        
-        if (id != null) { // have seen before; serialize just id
-            oid.serializer.serialize(id, jgen, provider);
+        WritableObjectId objectId = provider.findObjectId(bean, w.generator);
+        // If possible, write as id already
+        if (objectId.writeAsId(jgen, provider, w)) {
             return;
         }
-        // if not, bit more work:
-        oid.serializer = w.serializer;
-        oid.id = id = oid.generator.generateId(bean);
-        
+        // If not, need to inject the id:
+        Object id = objectId.generateId(bean);
+        if (w.alwaysAsId) {
+            w.serializer.serialize(id, jgen, provider);
+            return;
+        }
         String typeStr = (_typeId == null) ? null :_customTypeId(bean);
         if (typeStr == null) {
             typeSer.writeTypePrefixForObject(bean, jgen);
         } else {
             typeSer.writeCustomTypePrefixForObject(bean, jgen, typeStr);
         }
-
-        // Very first thing: inject the id property
-        SerializedString name = w.propertyName;
-        if (name != null) {
-            jgen.writeFieldName(name);
-            w.serializer.serialize(id, jgen, provider);
-        }
-
+        objectId.writeAsField(jgen, provider, w);
         if (_propertyFilterId != null) {
             serializeFieldsFiltered(bean, jgen, provider);
         } else {
@@ -538,7 +584,7 @@ public abstract class BeanSerializerBase
         throws IOException, JsonGenerationException
     {
         final BeanPropertyWriter[] props;
-        if (_filteredProps != null && provider.getSerializationView() != null) {
+        if (_filteredProps != null && provider.getActiveView() != null) {
             props = _filteredProps;
         } else {
             props = _props;
@@ -582,7 +628,7 @@ public abstract class BeanSerializerBase
          */
         
         final BeanPropertyWriter[] props;
-        if (_filteredProps != null && provider.getSerializationView() != null) {
+        if (_filteredProps != null && provider.getActiveView() != null) {
             props = _filteredProps;
         } else {
             props = _props;

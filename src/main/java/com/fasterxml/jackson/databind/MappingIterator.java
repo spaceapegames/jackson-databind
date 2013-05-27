@@ -101,7 +101,7 @@ public class MappingIterator<T> implements Iterator<T>, Closeable
     /**********************************************************
      */
 
-//  @Override
+    @Override
     public boolean hasNext()
     {
         try {
@@ -113,7 +113,7 @@ public class MappingIterator<T> implements Iterator<T>, Closeable
         }
     }
 
-//  @Override
+    @Override
     public T next()
     {
         try {
@@ -125,11 +125,12 @@ public class MappingIterator<T> implements Iterator<T>, Closeable
         }
     }
 
-//  @Override
+    @Override
     public void remove() {
         throw new UnsupportedOperationException();
     }
     
+    @Override
     public void close() throws IOException{
         if(_parser != null) {
             _parser.close();
@@ -138,7 +139,7 @@ public class MappingIterator<T> implements Iterator<T>, Closeable
 
     /*
     /**********************************************************
-    /* Extended API
+    /* Extended API, iteration
     /**********************************************************
      */
 
@@ -193,5 +194,59 @@ public class MappingIterator<T> implements Iterator<T>, Closeable
         // Need to consume the token too
         _parser.clearCurrentToken();
         return result;
+    }
+
+    /**
+     * Convenience method for reading all entries accessible via
+     * this iterator
+     * 
+     * @return List of entries read
+     * 
+     * @since 2.2
+     */
+    public List<T> readAll() throws IOException {
+        return readAll(new ArrayList<T>());
+    }
+
+    /**
+     * Convenience method for reading all entries accessible via
+     * this iterator
+     * 
+     * @return List of entries read (same as passed-in argument)
+     * 
+     * @since 2.2
+     */
+    public List<T> readAll(List<T> resultList) throws IOException
+    {
+        while (hasNextValue()) {
+    		    resultList.add(nextValue());
+        }
+        return resultList;
+    }
+    
+    /*
+    /**********************************************************
+    /* Extended API, accessors
+    /**********************************************************
+     */
+
+    /**
+     * Accessor for getting underlying parser this iterator uses.
+     * 
+     * @since 2.2
+     */
+    public JsonParser getParser() {
+    	return _parser;
+    }
+
+    /**
+     * Accessor for accessing {@link FormatSchema} that the underlying parser
+     * (as per {@link #getParser}) is using, if any; only parser of schema-aware
+     * formats use schemas.
+     * 
+     * @since 2.2
+     */
+    public FormatSchema getParserSchema() {
+    	return _parser.getSchema();
     }
 }

@@ -73,11 +73,18 @@ public class TestFeatures
         public int a = 3;
 
         protected boolean wasClosed = false;
-        
-//      @Override
+
+        @Override
         public void close() throws IOException {
             wasClosed = true;
         }
+    }
+
+    private static class StringListBean {
+        @SuppressWarnings("unused")
+        public Collection<String> values;
+        
+        public StringListBean(Collection<String> v) { values = v; }
     }
     
     /*
@@ -244,11 +251,19 @@ public class TestFeatures
         HashSet<Long> longs = new HashSet<Long>();
         longs.add(42L);
         assertEquals("42", writer.writeValueAsString(longs));
+        // [Issue#180]
+        final String EXP_STRINGS = "{\"values\":\"foo\"}";
+        assertEquals(EXP_STRINGS, writer.writeValueAsString(new StringListBean(Collections.singletonList("foo"))));
 
+        final Set<String> SET = new HashSet<String>();
+        SET.add("foo");
+        assertEquals(EXP_STRINGS, writer.writeValueAsString(new StringListBean(SET)));
+        
         // arrays:
         assertEquals("true", writer.writeValueAsString(new boolean[] { true }));
         assertEquals("true", writer.writeValueAsString(new Boolean[] { Boolean.TRUE }));
         assertEquals("3", writer.writeValueAsString(new int[] { 3 }));
         assertEquals(quote("foo"), writer.writeValueAsString(new String[] { "foo" }));
+        
     }
 }

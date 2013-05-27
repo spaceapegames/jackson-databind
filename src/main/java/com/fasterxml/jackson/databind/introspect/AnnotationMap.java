@@ -16,12 +16,13 @@ public final class AnnotationMap implements Annotations
     protected HashMap<Class<? extends Annotation>,Annotation> _annotations;
 
     public AnnotationMap() { }
+    
     private AnnotationMap(HashMap<Class<? extends Annotation>,Annotation> a) {
         _annotations = a;
     }
 
     @SuppressWarnings("unchecked")
-//  @Override
+    @Override
     public <A extends Annotation> A get(Class<A> cls)
     {
         if (_annotations == null) {
@@ -51,7 +52,7 @@ public final class AnnotationMap implements Annotations
         return new AnnotationMap(annotations);
     }
     
-//  @Override
+    @Override
     public int size() {
         return (_annotations == null) ? 0 : _annotations.size();
     }

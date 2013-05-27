@@ -120,7 +120,7 @@ public class TestUnwrappedWithPrefix extends BaseMapTest
     static class ConfigMisc {
         public int value;
     }
-    
+
     // // // Reuse mapper to keep tests bit faster
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -148,7 +148,7 @@ public class TestUnwrappedWithPrefix extends BaseMapTest
         String json = mapper.writeValueAsString(new ConfigRoot("Fred", 25));
         assertEquals("{\"general.names.name\":\"Fred\",\"misc.value\":25}", json);
     }
-    
+
     /*
     /**********************************************************
     /* Tests, deserialization

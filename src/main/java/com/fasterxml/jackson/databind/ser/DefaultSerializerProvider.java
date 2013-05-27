@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.annotation.NoClass;
 import com.fasterxml.jackson.databind.cfg.HandlerInstantiator;
 import com.fasterxml.jackson.databind.introspect.Annotated;
-import com.fasterxml.jackson.databind.introspect.ObjectIdInfo;
 import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrapper;
 import com.fasterxml.jackson.databind.jsonschema.SchemaAware;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -290,7 +289,13 @@ public abstract class DefaultSerializerProvider
      * implementations are to swallow exceptions if necessary.
      */
     public boolean hasSerializerFor(Class<?> cls) {
-        return _findExplicitUntypedSerializer(cls) != null;
+    	try {
+    		return _findExplicitUntypedSerializer(cls) != null;
+    	} catch (JsonMappingException e) {
+    		// usually bad practice, but here caller only asked if a serializer
+    		// could be found; for which exception is useless
+    		return false;
+    	}
     }
 
     /*
@@ -329,21 +334,6 @@ public abstract class DefaultSerializerProvider
     /* Object Id handling
     /**********************************************************
      */
-
-    @Override
-    public ObjectIdGenerator<?> objectIdGeneratorInstance(Annotated annotated,
-            ObjectIdInfo objectIdInfo)
-        throws JsonMappingException
-    {
-        Class<?> implClass = objectIdInfo.getGeneratorType();
-        HandlerInstantiator hi = _config.getHandlerInstantiator();
-        ObjectIdGenerator<?> gen = (hi == null) ? null : hi.objectIdGeneratorInstance(_config, annotated, implClass);
-        if (gen == null) {
-            gen = (ObjectIdGenerator<?>) ClassUtil.createInstance(implClass,
-                    _config.canOverrideAccessModifiers());
-        }
-        return gen.forScope(objectIdInfo.getScope());
-    }
     
     @Override
     public WritableObjectId findObjectId(Object forPojo,
@@ -425,7 +415,7 @@ public abstract class DefaultSerializerProvider
         }
         return (JsonSerializer<Object>) _handleResolvable(ser);
     }
-    
+
     /*
     /**********************************************************
     /* Helper classes

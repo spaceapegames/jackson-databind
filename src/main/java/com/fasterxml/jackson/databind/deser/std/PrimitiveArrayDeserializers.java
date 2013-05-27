@@ -1,68 +1,56 @@
 package com.fasterxml.jackson.databind.deser.std;
 
 import java.io.IOException;
-import java.util.*;
 
 import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.annotation.JacksonStdImpl;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
-import com.fasterxml.jackson.databind.type.*;
 import com.fasterxml.jackson.databind.util.ArrayBuilders;
-import com.fasterxml.jackson.databind.util.ObjectBuffer;
-
 
 /**
  * Container for deserializers used for instantiating "primitive arrays",
  * arrays that contain non-object java primitive types.
  */
-public class PrimitiveArrayDeserializers
+@SuppressWarnings("serial")
+public abstract class PrimitiveArrayDeserializers<T> extends StdDeserializer<T>
 {
-    HashMap<JavaType,JsonDeserializer<Object>> _allDeserializers;
-
-    final static PrimitiveArrayDeserializers instance = new PrimitiveArrayDeserializers();
-
-    protected PrimitiveArrayDeserializers()
-    {
-        _allDeserializers = new HashMap<JavaType,JsonDeserializer<Object>>();
-        // note: we'll use component type as key, not array type
-        add(boolean.class, new BooleanDeser());
-
-        /* ByteDeser is bit special, as it has 2 separate modes of operation;
-         * one for String input (-> base64 input), the other for
-         * numeric input
-         */
-        add(byte.class, new ByteDeser());
-        add(short.class, new ShortDeser());
-        add(int.class, new IntDeser());
-        add(long.class, new LongDeser());
-
-        add(float.class, new FloatDeser());
-        add(double.class, new DoubleDeser());
-
-        add(String.class, new StringDeser());
-        /* also: char[] is most likely only used with Strings; doesn't
-         * seem to make sense to transfer as numbers
-         */
-        add(char.class, new CharDeser());
+    protected PrimitiveArrayDeserializers(Class<T> cls) {
+        super(cls);
     }
 
-    public static HashMap<JavaType,JsonDeserializer<Object>> getAll()
+    public static JsonDeserializer<?> forType(Class<?> rawType)
     {
-        return instance._allDeserializers;
+        // Start with more common types...
+        if (rawType == Integer.TYPE) {
+            return IntDeser.instance;
+        }
+        if (rawType == Long.TYPE) {
+            return LongDeser.instance;
+        }
+        
+        if (rawType == Byte.TYPE) {
+            return new ByteDeser();
+        }
+        if (rawType == Short.TYPE) {
+            return new ShortDeser();
+        }
+        if (rawType == Float.TYPE) {
+            return new FloatDeser();
+        }
+        if (rawType == Double.TYPE) {
+            return new DoubleDeser();
+        }
+        if (rawType == Boolean.TYPE) {
+            return new BooleanDeser();
+        }
+        if (rawType == Character.TYPE) {
+            return new CharDeser();
+        }
+        throw new IllegalStateException();
     }
 
-    @SuppressWarnings("unchecked")
-    private void add(Class<?> cls, JsonDeserializer<?> deser)
-    {
-        /* Not super clean to use default TypeFactory in general, but
-         * since primitive array types can't be modified for anything
-         * useful, this should be ok:
-         */
-        _allDeserializers.put(TypeFactory.defaultInstance().constructType(cls),
-                (JsonDeserializer<Object>) deser);
-    }
-
+    @Override
     public Object deserializeWithType(JsonParser jp, DeserializationContext ctxt,
             TypeDeserializer typeDeserializer)
         throws IOException, JsonProcessingException
@@ -72,32 +60,6 @@ public class PrimitiveArrayDeserializers
          */
         return typeDeserializer.deserializeTypedFromArray(jp, ctxt);
     }
-
-    /*
-    /********************************************************
-    /* Intermediate base class
-    /********************************************************
-     */
-    
-    /**
-     * Intermediate base class for primitive array deserializers
-     */
-    static abstract class Base<T> extends StdDeserializer<T>
-    {
-        private static final long serialVersionUID = 1L;
-
-        protected Base(Class<T> cls) {
-            super(cls);
-        }
-
-        @Override
-        public Object deserializeWithType(JsonParser jp, DeserializationContext ctxt,
-            TypeDeserializer typeDeserializer)
-            throws IOException, JsonProcessingException
-        {
-            return typeDeserializer.deserializeTypedFromArray(jp, ctxt);
-        }
-    }
     
     /*
     /********************************************************
@@ -106,62 +68,8 @@ public class PrimitiveArrayDeserializers
     */
 
     @JacksonStdImpl
-    final static class StringDeser
-        extends Base<String[]>
-    {
-        private static final long serialVersionUID = 1L;
-
-        public StringDeser() { super(String[].class); }
-
-        @Override
-        public String[] deserialize(JsonParser jp, DeserializationContext ctxt)
-            throws IOException, JsonProcessingException
-        {
-            // Ok: must point to START_ARRAY (or equivalent)
-            if (!jp.isExpectedStartArrayToken()) {
-                return handleNonArray(jp, ctxt);
-            }
-            final ObjectBuffer buffer = ctxt.leaseObjectBuffer();
-            Object[] chunk = buffer.resetAndStart();
-            int ix = 0;
-            JsonToken t;
-            
-            while ((t = jp.nextToken()) != JsonToken.END_ARRAY) {
-                // Ok: no need to convert Strings, but must recognize nulls
-                String value = (t == JsonToken.VALUE_NULL) ? null : _parseString(jp, ctxt);
-                if (ix >= chunk.length) {
-                    chunk = buffer.appendCompletedChunk(chunk);
-                    ix = 0;
-                }
-                chunk[ix++] = value;
-            }
-            String[] result = buffer.completeAndClearBuffer(chunk, ix, String.class);
-            ctxt.returnObjectBuffer(buffer);
-            return result;
-        }
-    
-        private final String[] handleNonArray(JsonParser jp, DeserializationContext ctxt)
-            throws IOException, JsonProcessingException
-        {
-            // [JACKSON-526]: implicit arrays from single values?
-            if (!ctxt.isEnabled(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY)) {
-                // [JACKSON-620] Empty String can become null...
-                if ((jp.getCurrentToken() == JsonToken.VALUE_STRING)
-                        && ctxt.isEnabled(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT)) {
-                    String str = jp.getText();
-                    if (str.length() == 0) {
-                        return null;
-                    }
-                }
-                throw ctxt.mappingException(_valueClass);
-            }
-            return new String[] { (jp.getCurrentToken() == JsonToken.VALUE_NULL) ? null : _parseString(jp, ctxt) };
-        }
-    }
-    
-    @JacksonStdImpl
     final static class CharDeser
-        extends Base<char[]>
+        extends PrimitiveArrayDeserializers<char[]>
     {
         private static final long serialVersionUID = 1L;
 
@@ -222,14 +130,14 @@ public class PrimitiveArrayDeserializers
     }
 
     /*
-    /********************************************************
+    /**********************************************************
     /* Actual deserializers: primivate array desers
-    /********************************************************
-    */
+    /**********************************************************
+     */
 
     @JacksonStdImpl
     final static class BooleanDeser
-        extends Base<boolean[]>
+        extends PrimitiveArrayDeserializers<boolean[]>
     {
         private static final long serialVersionUID = 1L;
 
@@ -281,7 +189,7 @@ public class PrimitiveArrayDeserializers
      */
     @JacksonStdImpl
     final static class ByteDeser
-        extends Base<byte[]>
+        extends PrimitiveArrayDeserializers<byte[]>
     {
         private static final long serialVersionUID = 1L;
 
@@ -365,7 +273,7 @@ public class PrimitiveArrayDeserializers
 
     @JacksonStdImpl
     final static class ShortDeser
-        extends Base<short[]>
+        extends PrimitiveArrayDeserializers<short[]>
     {
         private static final long serialVersionUID = 1L;
 
@@ -412,10 +320,12 @@ public class PrimitiveArrayDeserializers
 
     @JacksonStdImpl
     final static class IntDeser
-        extends Base<int[]>
+        extends PrimitiveArrayDeserializers<int[]>
     {
         private static final long serialVersionUID = 1L;
 
+        public final static IntDeser instance = new IntDeser();
+        
         public IntDeser() { super(int[].class); }
 
         @Override
@@ -460,10 +370,12 @@ public class PrimitiveArrayDeserializers
 
     @JacksonStdImpl
     final static class LongDeser
-        extends Base<long[]>
+        extends PrimitiveArrayDeserializers<long[]>
     {
         private static final long serialVersionUID = 1L;
 
+        public final static LongDeser instance = new LongDeser();
+        
         public LongDeser() { super(long[].class); }
 
         @Override
@@ -507,7 +419,7 @@ public class PrimitiveArrayDeserializers
 
     @JacksonStdImpl
     final static class FloatDeser
-        extends Base<float[]>
+        extends PrimitiveArrayDeserializers<float[]>
     {
         private static final long serialVersionUID = 1L;
 
@@ -555,7 +467,7 @@ public class PrimitiveArrayDeserializers
 
     @JacksonStdImpl
     final static class DoubleDeser
-        extends Base<double[]>
+        extends PrimitiveArrayDeserializers<double[]>
     {
         private static final long serialVersionUID = 1L;
         

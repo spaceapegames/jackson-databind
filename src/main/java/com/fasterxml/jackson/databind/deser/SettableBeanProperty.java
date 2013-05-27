@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonObjectFormatVisitor;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
+import com.fasterxml.jackson.databind.jsontype.impl.FailingDeserializer;
 import com.fasterxml.jackson.databind.util.Annotations;
 import com.fasterxml.jackson.databind.util.ViewMatcher;
 
@@ -28,6 +29,15 @@ public abstract class SettableBeanProperty
     private static final long serialVersionUID = -1026580169193933453L;
 
     /**
+     * To avoid nasty NPEs, let's use a placeholder for _valueDeserializer,
+     * if real deserializer is not (yet) available.
+     * 
+     * @since 2.2
+     */
+    protected static final JsonDeserializer<Object> MISSING_VALUE_DESERIALIZER = new FailingDeserializer(
+            "No _valueDeserializer assigned");
+    
+    /**
      * Logical name of the property (often but not always derived
      * from the setter method name)
      */
@@ -37,6 +47,11 @@ public abstract class SettableBeanProperty
      * Base type for property; may be a supertype of actual value.
      */
     protected final JavaType _type;
+
+    /**
+     * @since 2.2
+     */
+    protected final PropertyName _wrapperName;
     
     /**
      * Class that contains this property (either class that declares
@@ -105,21 +120,19 @@ public abstract class SettableBeanProperty
     protected SettableBeanProperty(BeanPropertyDefinition propDef,
             JavaType type, TypeDeserializer typeDeser, Annotations contextAnnotations)
     {
-        this(propDef.getName(), type, typeDeser, contextAnnotations,
+        this(propDef.getName(), type, propDef.getWrapperName(), typeDeser, contextAnnotations,
                 propDef.isRequired());
     }
 
-    /*
     @Deprecated // since 2.2
-    protected SettableBeanProperty(String propName,
-            JavaType type, TypeDeserializer typeDeser, Annotations contextAnnotations)
+    protected SettableBeanProperty(String propName, JavaType type, PropertyName wrapper,
+            TypeDeserializer typeDeser, Annotations contextAnnotations)
     {
-        this(propName, type, typeDeser, contextAnnotations, false);
+        this(propName, type, wrapper, typeDeser, contextAnnotations, false);
     }
-    */
     
-    protected SettableBeanProperty(String propName,
-            JavaType type, TypeDeserializer typeDeser, Annotations contextAnnotations,
+    protected SettableBeanProperty(String propName, JavaType type, PropertyName wrapper,
+            TypeDeserializer typeDeser, Annotations contextAnnotations,
             boolean isRequired)
     {
         /* 09-Jan-2009, tatu: Intern()ing makes sense since Jackson parsed
@@ -135,6 +148,7 @@ public abstract class SettableBeanProperty
             _propName = InternCache.instance.intern(propName);
         }
         _type = type;
+        _wrapperName = wrapper;
         _isRequired = isRequired;
         _contextAnnotations = contextAnnotations;
         _viewMatcher = null;
@@ -144,6 +158,7 @@ public abstract class SettableBeanProperty
             typeDeser = typeDeser.forProperty(this);
         }
         _valueTypeDeserializer = typeDeser;
+        _valueDeserializer = MISSING_VALUE_DESERIALIZER;
     }
 
     /**
@@ -153,6 +168,7 @@ public abstract class SettableBeanProperty
     {
         _propName = src._propName;
         _type = src._type;
+        _wrapperName = src._wrapperName;
         _isRequired = src._isRequired;
         _contextAnnotations = src._contextAnnotations;
         _valueDeserializer = src._valueDeserializer;
@@ -171,18 +187,20 @@ public abstract class SettableBeanProperty
     {
         _propName = src._propName;
         _type = src._type;
+        _wrapperName = src._wrapperName;
         _isRequired = src._isRequired;
         _contextAnnotations = src._contextAnnotations;
         _valueTypeDeserializer = src._valueTypeDeserializer;
         _managedReferenceName = src._managedReferenceName;
         _propertyIndex = src._propertyIndex;
 
-        _valueDeserializer = (JsonDeserializer<Object>) deser;
         if (deser == null) {
             _nullProvider = null;
+            _valueDeserializer = MISSING_VALUE_DESERIALIZER;
         } else {
             Object nvl = deser.getNullValue();
             _nullProvider = (nvl == null) ? null : new NullProvider(_type, nvl);
+            _valueDeserializer = (JsonDeserializer<Object>) deser;
         }
         _viewMatcher = src._viewMatcher;
     }
@@ -194,6 +212,7 @@ public abstract class SettableBeanProperty
     {
         _propName = newName;
         _type = src._type;
+        _wrapperName = src._wrapperName;
         _isRequired = src._isRequired;
         _contextAnnotations = src._contextAnnotations;
         _valueDeserializer = src._valueDeserializer;
@@ -256,25 +275,32 @@ public abstract class SettableBeanProperty
     /**********************************************************
      */
     
-//  @Override
+    @Override
     public final String getName() { return _propName; }
 
-//  @Override
+    @Override
     public boolean isRequired() { return _isRequired; }
     
-//  @Override
+    @Override
     public JavaType getType() { return _type; }
 
+    @Override
+    public PropertyName getWrapperName() {
+        return _wrapperName;
+    }
+    
+    @Override
     public abstract <A extends Annotation> A getAnnotation(Class<A> acls);
 
-//  @Override
+    @Override
     public abstract AnnotatedMember getMember();
 
+    @Override
     public <A extends Annotation> A getContextAnnotation(Class<A> acls) {
         return _contextAnnotations.get(acls);
     }
 
-//  @Override
+    @Override
     public void depositSchemaProperty(JsonObjectFormatVisitor objectVisitor)
         throws JsonMappingException
     {
@@ -297,11 +323,19 @@ public abstract class SettableBeanProperty
 
     public String getManagedReferenceName() { return _managedReferenceName; }
 
-    public boolean hasValueDeserializer() { return (_valueDeserializer != null); }
+    public boolean hasValueDeserializer() {
+        return (_valueDeserializer != null) && (_valueDeserializer != MISSING_VALUE_DESERIALIZER);
+    }
 
     public boolean hasValueTypeDeserializer() { return (_valueTypeDeserializer != null); }
     
-    public JsonDeserializer<Object> getValueDeserializer() { return _valueDeserializer; }
+    public JsonDeserializer<Object> getValueDeserializer() {
+        JsonDeserializer<Object> deser = _valueDeserializer;
+        if (deser == MISSING_VALUE_DESERIALIZER) {
+            return null;
+        }
+        return deser;
+    }
 
     public TypeDeserializer getValueTypeDeserializer() { return _valueTypeDeserializer; }
 

@@ -31,7 +31,7 @@ public interface BeanProperty extends Named
     /**
      * Method to get logical name of the property
      */
-//  @Override
+    @Override
     public String getName();
     
     /**
@@ -39,6 +39,14 @@ public interface BeanProperty extends Named
      */
     public JavaType getType();
 
+    /**
+     * If property is indicated to be wrapped, name of
+     * wrapper element to use.
+     * 
+     * @since 2.2
+     */
+    public PropertyName getWrapperName();
+    
     /**
      * Whether value for property is marked as required using
      * annotations or associated schema.
@@ -95,6 +103,9 @@ public interface BeanProperty extends Named
     {
         protected final String _name;
         protected final JavaType _type;
+        protected final PropertyName _wrapperName;
+        
+        protected final boolean _isRequired;
 
         /**
          * Physical entity (field, method or constructor argument) that
@@ -109,45 +120,53 @@ public interface BeanProperty extends Named
          */
         protected final Annotations _contextAnnotations;
         
-        public Std(String name, JavaType type, Annotations contextAnnotations, AnnotatedMember member)
+        public Std(String name, JavaType type, PropertyName wrapperName,
+                Annotations contextAnnotations, AnnotatedMember member,
+                boolean isRequired)
         {
             _name = name;
             _type = type;
+            _wrapperName = wrapperName;
+            _isRequired = isRequired;
             _member = member;
             _contextAnnotations = contextAnnotations;
         }
         
         public Std withType(JavaType type) {
-            return new Std(_name, type, _contextAnnotations, _member);
+            return new Std(_name, type, _wrapperName, _contextAnnotations, _member, _isRequired);
         }
         
-//        @Override
+        @Override
         public <A extends Annotation> A getAnnotation(Class<A> acls) {
             return (_member == null) ? null : _member.getAnnotation(acls);
         }
 
-//        @Override
+        @Override
         public <A extends Annotation> A getContextAnnotation(Class<A> acls) {
             return (_contextAnnotations == null) ? null : _contextAnnotations.get(acls);
         }
         
-//      @Override
+        @Override
         public String getName() {
             return _name;
         }
 
-//      @Override
+        @Override
         public JavaType getType() {
             return _type;
         }
 
-//      @Override
-        public boolean isRequired() {
-            // !!! TODO (maybe): allow changing
-            return false;
+        @Override
+        public PropertyName getWrapperName() {
+            return _wrapperName;
         }
         
-//      @Override
+        @Override
+        public boolean isRequired() {
+            return _isRequired;
+        }
+        
+        @Override
         public AnnotatedMember getMember() {
             return _member;
         }
@@ -158,7 +177,7 @@ public interface BeanProperty extends Named
          * implementation should not be used as part of actual structure
          * visited. Rather, other implementations should handle it.
          */
-//      @Override
+        @Override
         public void depositSchemaProperty(JsonObjectFormatVisitor objectVisitor) {
             throw new UnsupportedOperationException("Instances of "+getClass().getName()
                     +" should not get visited");

@@ -71,28 +71,28 @@ public final class BeanPropertyMap
      */
     public BeanPropertyMap withProperty(SettableBeanProperty newProperty)
     {
-    	// first things first: can just copy hash area:
-    	final int bcount = _buckets.length;
+        // first things first: can just copy hash area:
+        final int bcount = _buckets.length;
         Bucket[] newBuckets = new Bucket[bcount];
         System.arraycopy(_buckets, 0, newBuckets, 0, bcount);
         final String propName = newProperty.getName();
         // and then see if it's add or replace:
-    	SettableBeanProperty oldProp = find(newProperty.getName());
-    	if (oldProp == null) { // add
-    	    // first things first: add or replace?
-    	    // can do a straight copy, since all additions are at the front
-    	    // and then insert the new property:
-    	    int index = propName.hashCode() & _hashMask;
-    	    newBuckets[index] = new Bucket(newBuckets[index],
-    	            propName, newProperty, _nextBucketIndex++);
-    	    return new BeanPropertyMap(newBuckets, _size+1, _nextBucketIndex);
-    	}
-    	// replace: easy, close + replace
-    	BeanPropertyMap newMap = new BeanPropertyMap(newBuckets, bcount, _nextBucketIndex);
-    	newMap.replace(newProperty);
-    	return newMap;
+        SettableBeanProperty oldProp = find(newProperty.getName());
+        if (oldProp == null) { // add
+            // first things first: add or replace?
+    	        // can do a straight copy, since all additions are at the front
+    	        // and then insert the new property:
+    	        int index = propName.hashCode() & _hashMask;
+    	        newBuckets[index] = new Bucket(newBuckets[index],
+    	                propName, newProperty, _nextBucketIndex++);
+    	        return new BeanPropertyMap(newBuckets, _size+1, _nextBucketIndex);
+        }
+        // replace: easy, close + replace
+        BeanPropertyMap newMap = new BeanPropertyMap(newBuckets, bcount, _nextBucketIndex);
+        newMap.replace(newProperty);
+        return newMap;
     }
-    
+
     /**
      * Factory method for constructing a map where all entries use given
      * prefix
@@ -152,11 +152,33 @@ public final class BeanPropertyMap
     /* Iterable, for convenient iterating over all properties
     /**********************************************************
      */
+
+    @Override
+    public String toString()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Properties=[");
+        int count = 0;
+        for (SettableBeanProperty prop : getPropertiesInInsertionOrder()) {
+            if (prop == null) {
+                continue;
+            }
+            if (count++ > 0) {
+                sb.append(", ");
+            }
+            sb.append(prop.getName());
+            sb.append('(');
+            sb.append(prop.getType());
+            sb.append(')');
+        }
+        sb.append(']');
+        return sb.toString();
+    }
     
     /**
      * Accessor for traversing over all contained properties.
      */
-//    @Override
+    @Override
     public Iterator<SettableBeanProperty> iterator() {
         return new IteratorImpl(_buckets);
     }
@@ -349,12 +371,12 @@ public final class BeanPropertyMap
             _nextBucketIndex = i;
         }
 
-//        @Override
+        @Override
         public boolean hasNext() {
             return _currentBucket != null;
         }
 
-//        @Override
+        @Override
         public SettableBeanProperty next()
         {
             Bucket curr = _currentBucket;
@@ -370,7 +392,7 @@ public final class BeanPropertyMap
             return curr.value;
         }
 
-//       @Override
+        @Override
         public void remove() {
             throw new UnsupportedOperationException();
         }

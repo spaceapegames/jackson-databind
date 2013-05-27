@@ -79,14 +79,21 @@ public final class IntNode
     }
 
     @Override
+    public short shortValue() { return (short) _value; }
+
+    @Override
     public int intValue() { return _value; }
 
     @Override
     public long longValue() { return (long) _value; }
 
     @Override
+    public float floatValue() { return (float) _value; }
+    
+    @Override
     public double doubleValue() { return (double) _value; }
 
+    
     @Override
     public BigDecimal decimalValue() { return BigDecimal.valueOf(_value); }
 

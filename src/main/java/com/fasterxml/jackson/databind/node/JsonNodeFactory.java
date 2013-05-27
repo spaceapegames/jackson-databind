@@ -129,7 +129,7 @@ public class JsonNodeFactory
      * Factory method for getting an instance of JSON numeric value
      * that expresses given 16-bit integer value
      */
-    public NumericNode numberNode(short v) { return IntNode.valueOf(v); }
+    public NumericNode numberNode(short v) { return ShortNode.valueOf(v); }
 
     /**
      * Alternate factory method that will handle wrapper value, which may
@@ -138,7 +138,7 @@ public class JsonNodeFactory
      * {@link NumericNode}, but just {@link ValueNode}.
      */
     public ValueNode numberNode(Short value) {
-        return (value == null) ? nullNode() : IntNode.valueOf(value.shortValue());
+        return (value == null) ? nullNode() : ShortNode.valueOf(value);
     }
     
     /**
@@ -182,7 +182,7 @@ public class JsonNodeFactory
      * Factory method for getting an instance of JSON numeric value
      * that expresses given 32-bit floating point value
      */
-    public NumericNode numberNode(float v) { return DoubleNode.valueOf((double) v); }
+    public NumericNode numberNode(float v) { return FloatNode.valueOf((float) v); }
 
     /**
      * Alternate factory method that will handle wrapper value, which may
@@ -191,7 +191,7 @@ public class JsonNodeFactory
      * {@link NumericNode}, but just {@link ValueNode}.
      */
     public ValueNode numberNode(Float value) {
-        return (value == null) ? nullNode() : DoubleNode.valueOf(value.doubleValue());
+        return (value == null) ? nullNode() : FloatNode.valueOf(value.floatValue());
     }
     
     /**
@@ -222,7 +222,24 @@ public class JsonNodeFactory
      */
     public NumericNode numberNode(BigDecimal v)
     {
-        return DecimalNode.valueOf(_cfgBigDecimalExact ? v : v.stripTrailingZeros());
+        /*
+         * If the user wants the exact representation of this big decimal,
+         * return the value directly
+         */
+        if (_cfgBigDecimalExact)
+            return DecimalNode.valueOf(v);
+
+        /*
+         * If the user has asked to strip trailing zeroes, however, there is
+         * this bug to account for:
+         *
+         * http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6480539
+         *
+         * In short: zeroes are never stripped out of 0! We therefore _have_
+         * to compare with BigDecimal.ZERO...
+         */
+        return v.compareTo(BigDecimal.ZERO) == 0 ? DecimalNode.ZERO
+            : DecimalNode.valueOf(v.stripTrailingZeros());
     }
 
     /*

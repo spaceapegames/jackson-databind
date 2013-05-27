@@ -6,6 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.util.Converter;
 
 /**
  * Annotation used for configuring serialization aspects, by attaching
@@ -103,6 +104,29 @@ public @interface JsonSerialize
      */
     public Typing typing() default Typing.DYNAMIC;
 
+    // // // Annotations for specifying intermediate Converters (2.2+)
+    
+    /**
+     * Which helper object is to be used to convert type into something
+     * that Jackson knows how to serialize; either because base type
+     * can not be serialized easily, or just to alter serialization.
+     *
+     * @since 2.2
+     */
+    public Class<? extends Converter<?,?>> converter() default Converter.None.class;
+
+    /**
+     * Similar to {@link #converter}, but used for values of structures types
+     * (List, arrays, Maps).
+     * Note that this property does NOT have effect when used as Class annotation;
+     * it can only be used as property annotation: this because association between
+     * container and value types is loose and as such converters seldom make sense
+     * for such usage.
+     *
+     * @since 2.2
+     */
+    public Class<? extends Converter<?,?>> contentConverter() default Converter.None.class;
+    
     // // // Annotation(s) for inclusion criteria
 
     /**

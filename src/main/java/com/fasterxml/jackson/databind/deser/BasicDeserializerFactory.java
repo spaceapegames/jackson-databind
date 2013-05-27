@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.cfg.DeserializerFactoryConfig;
 import com.fasterxml.jackson.databind.cfg.HandlerInstantiator;
 import com.fasterxml.jackson.databind.deser.impl.CreatorCollector;
 import com.fasterxml.jackson.databind.deser.std.*;
-import com.fasterxml.jackson.databind.ext.OptionalHandlerFactory;
 import com.fasterxml.jackson.databind.introspect.*;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
@@ -29,65 +28,20 @@ import com.fasterxml.jackson.databind.util.EnumResolver;
  * no additional introspection or customizability of these types,
  * this factory is stateless.
  */
+@SuppressWarnings("serial")
 public abstract class BasicDeserializerFactory
     extends DeserializerFactory
     implements java.io.Serializable
 {
-    private static final long serialVersionUID = 1;
-
-    /**
-     * We will pre-create serializers for common non-structured
-     * (that is things other than Collection, Map or array)
-     * types. These need not go through factory.
-     */
-    final protected static HashMap<ClassKey, JsonDeserializer<Object>> _simpleDeserializers
-        = new HashMap<ClassKey, JsonDeserializer<Object>>();
-
+    private final static Class<?> CLASS_OBJECT = Object.class;
+    private final static Class<?> CLASS_STRING = String.class;
+    private final static Class<?> CLASS_CHAR_BUFFER = CharSequence.class;
+    private final static Class<?> CLASS_ITERABLE = Iterable.class;
+    
     /**
      * Also special array deserializers for primitive array types.
      */
-    final protected static HashMap<JavaType,JsonDeserializer<Object>> _arrayDeserializers
-        = PrimitiveArrayDeserializers.getAll();
-
-    /**
-     * Set of available key deserializers is currently limited
-     * to standard types; and all known instances are storing in this map.
-     */
-    final protected static HashMap<JavaType, KeyDeserializer> _keyDeserializers = StdKeyDeserializers.constructAll();
-
-    static {
-        // First, add the fall-back "untyped" deserializer:
-        _add(_simpleDeserializers, Object.class, new UntypedObjectDeserializer());
-    
-        // Then String and String-like converters:
-        StdDeserializer<?> strDeser = new StringDeserializer();
-        _add(_simpleDeserializers, String.class, strDeser);
-        _add(_simpleDeserializers, CharSequence.class, strDeser);
-    
-        // Primitives/wrappers, other Numbers:
-        _add(_simpleDeserializers, NumberDeserializers.all());
-        // Date/time types
-        _add(_simpleDeserializers, DateDeserializers.all());
-        // other JDK types
-        _add(_simpleDeserializers, JdkDeserializers.all());
-        // and a few Jackson types as well:
-        _add(_simpleDeserializers, JacksonDeserializers.all());
-    }
-
-    private static void _add(Map<ClassKey, JsonDeserializer<Object>> desers,
-            StdDeserializer<?>[] serializers) {
-        for (StdDeserializer<?> ser : serializers) {
-            _add(desers, ser.getValueClass(), ser);
-        }
-    }
-
-    private static void _add(Map<ClassKey, JsonDeserializer<Object>> desers,
-            Class<?> valueClass, StdDeserializer<?> stdDeser)
-    {
-        @SuppressWarnings("unchecked")
-        JsonDeserializer<Object> deser = (JsonDeserializer<Object>) stdDeser;
-        desers.put(new ClassKey(valueClass), deser);
-    }
+//    final protected static HashMap<JavaType,JsonDeserializer<Object>> _arrayDeserializers = PrimitiveArrayDeserializers.getAll();
     
     /* We do some defaulting for abstract Map classes and
      * interfaces, to avoid having to use exact types or annotations in
@@ -108,13 +62,13 @@ public abstract class BasicDeserializerFactory
          */
         _mapFallbacks.put("java.util.NavigableMap", TreeMap.class);
         try {
-            Class<?> key = Class.forName("java.util.concurrent.ConcurrentNavigableMap");
-            Class<?> value = Class.forName("java.util.concurrent.ConcurrentSkipListMap");
+            Class<?> key = java.util.concurrent.ConcurrentNavigableMap.class;
+            Class<?> value = java.util.concurrent.ConcurrentSkipListMap.class;
             @SuppressWarnings("unchecked")
                 Class<? extends Map<?,?>> mapValue = (Class<? extends Map<?,?>>) value;
             _mapFallbacks.put(key.getName(), mapValue);
-        } catch (ClassNotFoundException cnfe) { // occurs on 1.5
-        } catch (SecurityException se) { // might occur in applets, see stackoverflow.com/questions/12345068
+        } catch (Exception e) { // is this possible?
+            System.err.println("Problems with (optional) types: "+e);
         }
     }
 
@@ -132,19 +86,10 @@ public abstract class BasicDeserializerFactory
         _collectionFallbacks.put(SortedSet.class.getName(), TreeSet.class);
         _collectionFallbacks.put(Queue.class.getName(), LinkedList.class);
 
-        /* 11-Jan-2009, tatu: Let's see if we can still add support for
-         *    JDK 1.6 interfaces, even if we run on 1.5. Just need to be
-         *    more careful with typos, since compiler won't notice any
-         *    problems...
-         */
-        _collectionFallbacks.put("java.util.Deque", LinkedList.class);
-        _collectionFallbacks.put("java.util.NavigableSet", TreeSet.class);
+        // then 1.6 types:
+        _collectionFallbacks.put(java.util.Deque.class.getName(), LinkedList.class);
+        _collectionFallbacks.put(java.util.NavigableSet.class.getName(), TreeSet.class);
     }
-
-    /**
-     * To support external/optional deserializers, we'll use a helper class
-     */
-    protected OptionalHandlerFactory optionalHandlers = OptionalHandlerFactory.instance;
     
     /*
     /**********************************************************
@@ -167,7 +112,7 @@ public abstract class BasicDeserializerFactory
     protected BasicDeserializerFactory(DeserializerFactoryConfig config) {
         _factoryConfig = config;
     }
-
+    
     /**
      * Method for getting current {@link DeserializerFactoryConfig}.
       *<p>
@@ -424,15 +369,32 @@ public abstract class BasicDeserializerFactory
                 creators.setDefaultCreator(defaultCtor);
             }
         }
-        
+
+        String[] ctorPropNames = null;
+        AnnotatedConstructor propertyCtor = null;
+        for (BeanPropertyDefinition propDef : beanDesc.findProperties()) {
+            if (propDef.getConstructorParameter() != null) {
+                AnnotatedParameter param = propDef.getConstructorParameter();
+                AnnotatedWithParams owner = param.getOwner();
+                if (owner instanceof AnnotatedConstructor) {
+                    if (propertyCtor == null) {
+                        propertyCtor = (AnnotatedConstructor) owner;
+                        ctorPropNames = new String[propertyCtor.getParameterCount()];
+                    }
+                    ctorPropNames[param.getIndex()] = propDef.getName();
+                }
+            }
+        }
+
         for (AnnotatedConstructor ctor : beanDesc.getConstructors()) {
             int argCount = ctor.getParameterCount();
-            boolean isCreator = intr.hasCreatorAnnotation(ctor);
+            boolean isCreator = intr.hasCreatorAnnotation(ctor) || ctor == propertyCtor;
             boolean isVisible =  vchecker.isCreatorVisible(ctor);
             // some single-arg constructors (String, number) are auto-detected
             if (argCount == 1) {
+                String name = ctor == propertyCtor ? ctorPropNames[0] : null;
                 _handleSingleArgumentConstructor(ctxt, beanDesc, vchecker, intr, creators,
-                        ctor, isCreator, isVisible);
+                        ctor, isCreator, isVisible, name);
                 continue;
             }
             if (!isCreator && !isVisible) {
@@ -450,8 +412,14 @@ public abstract class BasicDeserializerFactory
             CreatorProperty[] properties = new CreatorProperty[argCount];
             for (int i = 0; i < argCount; ++i) {
                 AnnotatedParameter param = ctor.getParameter(i);
-                PropertyName pn = (param == null) ? null : intr.findNameForDeserialization(param);
-                String name = (pn == null) ? null : pn.getSimpleName();
+                String name = null;
+                if (ctor == propertyCtor) {
+                    name = ctorPropNames[i];
+                }
+                if (name == null) {
+                    PropertyName pn = (param == null) ? null : intr.findNameForDeserialization(param);
+                    name = (pn == null) ? null : pn.getSimpleName();
+                }
                 Object injectId = intr.findInjectableValueId(param);
                 if (name != null && name.length() > 0) {
                     ++namedCount;
@@ -482,13 +450,15 @@ public abstract class BasicDeserializerFactory
     protected boolean _handleSingleArgumentConstructor(DeserializationContext ctxt,
             BeanDescription beanDesc, VisibilityChecker<?> vchecker,
             AnnotationIntrospector intr, CreatorCollector creators,
-            AnnotatedConstructor ctor, boolean isCreator, boolean isVisible)
+            AnnotatedConstructor ctor, boolean isCreator, boolean isVisible, String name)
         throws JsonMappingException
     {
         // note: if we do have parameter name, it'll be "property constructor":
         AnnotatedParameter param = ctor.getParameter(0);
-        PropertyName pn = (param == null) ? null : intr.findNameForDeserialization(param);
-        String name = (pn == null) ? null : pn.getSimpleName();
+        if (name == null) {
+            PropertyName pn = (param == null) ? null : intr.findNameForDeserialization(param);
+            name = (pn == null) ? null : pn.getSimpleName();
+        }
         Object injectId = intr.findInjectableValueId(param);
     
         if ((injectId != null) || (name != null && name.length() > 0)) { // property-based
@@ -533,7 +503,7 @@ public abstract class BasicDeserializerFactory
         }
         return false;
     }
-    
+
     protected void _addDeserializerFactoryMethods
         (DeserializationContext ctxt, BeanDescription beanDesc, VisibilityChecker<?> vchecker,
          AnnotationIntrospector intr, CreatorCollector creators)
@@ -664,8 +634,15 @@ public abstract class BasicDeserializerFactory
         throws JsonMappingException
     {
         final DeserializationConfig config = ctxt.getConfig();
+        final AnnotationIntrospector intr = ctxt.getAnnotationIntrospector();
+        Boolean b = (intr == null) ? null : intr.hasRequiredMarker(param);
+        // how to default? Other code assumes missing value means 'false', so:
+        boolean req = (b == null) ? false : b.booleanValue();
+
         JavaType t0 = config.getTypeFactory().constructType(param.getParameterType(), beanDesc.bindingsForBeanType());
-        BeanProperty.Std property = new BeanProperty.Std(name, t0, beanDesc.getClassAnnotations(), param);
+        BeanProperty.Std property = new BeanProperty.Std(name, t0,
+                intr.findWrapperName(param),
+                beanDesc.getClassAnnotations(), param, req);
         JavaType type = resolveType(ctxt, beanDesc, t0, param);
         if (type != t0) {
             property = property.withType(type);
@@ -681,14 +658,10 @@ public abstract class BasicDeserializerFactory
         if (typeDeser == null) {
             typeDeser = findTypeDeserializer(config, type);
         }
-        AnnotationIntrospector intr = ctxt.getAnnotationIntrospector();
-        Boolean b = (intr == null) ? null : intr.hasRequiredMarker(param);
-        // how to default? Other code assumes missing value means 'false', so:
-        boolean isRequired = (b == null) ? false : b.booleanValue();
 
-        CreatorProperty prop = new CreatorProperty(name, type, typeDeser,
-                beanDesc.getClassAnnotations(), param, index, injectableValueId,
-                isRequired);
+        CreatorProperty prop = new CreatorProperty(name, type, property.getWrapperName(),
+                typeDeser, beanDesc.getClassAnnotations(), param, index, injectableValueId,
+                property.isRequired());
         if (deser != null) {
             prop = prop.withValueDeserializer(deser);
         }
@@ -722,12 +695,11 @@ public abstract class BasicDeserializerFactory
                 config, beanDesc, elemTypeDeser, contentDeser);
         if (deser == null) {
             if (contentDeser == null) {
-                // Maybe special array type, such as "primitive" arrays (int[] etc)
-                deser = _arrayDeserializers.get(elemType);
-                if (deser == null) {
-                    if (elemType.isPrimitive()) { // sanity check
-                        throw new IllegalArgumentException("Internal error: primitive type ("+type+") passed, no array deserializer found");
-                    }
+                Class<?> raw = elemType.getRawClass();
+                if (elemType.isPrimitive()) {
+                    return PrimitiveArrayDeserializers.forType(raw);
+                } else if (raw == String.class) {
+                    return StringArrayDeserializer.instance;
                 }
             }
             if (deser == null) {
@@ -763,7 +735,7 @@ public abstract class BasicDeserializerFactory
     /* JsonDeserializerFactory impl: Collection(-like) deserializers
     /**********************************************************
      */
-    
+
     @Override
     public JsonDeserializer<?> createCollectionDeserializer(DeserializationContext ctxt,
             CollectionType type, BeanDescription beanDesc)
@@ -805,18 +777,21 @@ public abstract class BasicDeserializerFactory
          */
         if (deser == null) {
             if (type.isInterface() || type.isAbstract()) {
-                Class<?> collectionClass = type.getRawClass();
-                @SuppressWarnings({ "rawtypes" })
-                Class<? extends Collection> fallback = _collectionFallbacks.get(collectionClass.getName());
-                if (fallback == null) {
+                CollectionType implType = _mapAbstractCollectionType(type, config);
+                if (implType == null) {
                     throw new IllegalArgumentException("Can not find a deserializer for non-concrete Collection type "+type);
                 }
-                collectionClass = fallback;
-                type = (CollectionType) config.constructSpecializedType(type, collectionClass);
+                type = implType;
                 // But if so, also need to re-check creators...
                 beanDesc = config.introspectForCreation(type);
             }
             ValueInstantiator inst = findValueInstantiator(ctxt, beanDesc);
+            if (!inst.canCreateUsingDefault()) {
+                // [Issue#161]: No default constructor for ArrayBlockingQueue...
+                if (type.getRawClass() == ArrayBlockingQueue.class) {
+                    return new ArrayBlockingQueueDeserializer(type, contentDeser, contentTypeDeser, inst, null);
+                }
+            }
             // 13-Dec-2010, tatu: Can use more optimal deserializer if content type is String, so:
             if (contentType.getRawClass() == String.class) {
                 // no value type deserializer because Strings are one of natural/native types:
@@ -832,6 +807,16 @@ public abstract class BasicDeserializerFactory
             }
         }
         return deser;
+    }
+
+    protected CollectionType _mapAbstractCollectionType(JavaType type, DeserializationConfig config)
+    {
+        Class<?> collectionClass = type.getRawClass();
+        collectionClass = _collectionFallbacks.get(collectionClass.getName());
+        if (collectionClass == null) {
+            return null;
+        }
+        return (CollectionType) config.constructSpecializedType(type, collectionClass);
     }
 
     protected JsonDeserializer<?> _findCustomCollectionDeserializer(CollectionType type,
@@ -1207,29 +1192,20 @@ public abstract class BasicDeserializerFactory
                 }
             }
         }
+        // the only non-standard thing is this:
         if (deser == null) {
-            // and if none found, standard ones:
-            Class<?> raw = type.getRawClass();
-            if (raw == String.class || raw == Object.class) {
-                deser = StdKeyDeserializers.constructStringKeyDeserializer(config, type);
-            } else {
-                // Most other keys are for limited number of static types
-                deser = _keyDeserializers.get(type);
-                if (deser == null) {
-                    // And then other one-offs; first, Enum:
-                    if (type.isEnumType()) {
-                        deser = _createEnumKeyDeserializer(ctxt, type);
-                    } else {
-                        // One more thing: can we find ctor(String) or valueOf(String)?
-                        deser = StdKeyDeserializers.findStringBasedKeyDeserializer(config, type);
-                    }
-                }
+            if (type.isEnumType()) {
+                return _createEnumKeyDeserializer(ctxt, type);
             }
+            deser = StdKeyDeserializers.findStringBasedKeyDeserializer(config, type);
         }
+        
         // and then new with 2.2: ability to post-process it too (Issue#120)
-        if (_factoryConfig.hasDeserializerModifiers()) {
-            for (BeanDeserializerModifier mod : _factoryConfig.deserializerModifiers()) {
-                deser = mod.modifyKeyDeserializer(config, type, deser);
+        if (deser != null) {
+            if (_factoryConfig.hasDeserializerModifiers()) {
+                for (BeanDeserializerModifier mod : _factoryConfig.deserializerModifiers()) {
+                    deser = mod.modifyKeyDeserializer(config, type, deser);
+                }
             }
         }
         return deser;
@@ -1342,6 +1318,53 @@ public abstract class BasicDeserializerFactory
         return b.buildTypeDeserializer(config, contentType, subtypes);
     }
 
+    /**
+     * Helper method called to find one of default serializers for "well-known"
+     * platform types: JDK-provided types, and small number of public Jackson
+     * API types.
+     * 
+     * @since 2.2
+     */
+    public JsonDeserializer<?> findDefaultDeserializer(DeserializationContext ctxt,
+            JavaType type, BeanDescription beanDesc)
+        throws JsonMappingException
+    {
+        Class<?> rawType = type.getRawClass();
+        String clsName = rawType.getName();
+        if (rawType.isPrimitive() || clsName.startsWith("java.")) {
+            // Object ("untyped"), String equivalents:
+            if (rawType == CLASS_OBJECT) {
+                return UntypedObjectDeserializer.instance;
+            }
+            if (rawType == CLASS_STRING || rawType == CLASS_CHAR_BUFFER) {
+                return StringDeserializer.instance;
+            }
+            if (rawType == CLASS_ITERABLE) {
+                // [Issue#199]: Can and should 'upgrade' to a Collection type:
+                TypeFactory tf = ctxt.getTypeFactory();
+                JavaType elemType = (type.containedTypeCount() > 0) ? type.containedType(0) : TypeFactory.unknownType();
+                CollectionType ct = tf.constructCollectionType(Collection.class, elemType);
+                // Should we re-introspect beanDesc? For now let's not...
+                return createCollectionDeserializer(ctxt, ct, beanDesc);
+            }
+            // Primitives/wrappers, other Numbers:
+            JsonDeserializer<?> deser = NumberDeserializers.find(rawType, clsName);
+            if (deser == null) {
+                deser = DateDeserializers.find(rawType, clsName);
+                if (deser == null) {
+                    deser = JdkDeserializers.find(rawType, clsName);
+                }
+            }
+            return deser;
+        }
+        if (clsName.startsWith("com.fasterxml.")) {
+            // and a few Jackson types as well:
+            return JacksonDeserializers.find(rawType);
+        }
+        return null;
+    }
+
+    
     /*
     /**********************************************************
     /* Helper methods, value/content/key type introspection
@@ -1488,7 +1511,7 @@ public abstract class BasicDeserializerFactory
             	}
             }
         }
-    	TypeDeserializer valueTypeDeser;
+        TypeDeserializer valueTypeDeser;
 
         if (member instanceof AnnotatedMember) { // JAXB allows per-property annotations
             valueTypeDeser = findPropertyTypeDeserializer(ctxt.getConfig(),

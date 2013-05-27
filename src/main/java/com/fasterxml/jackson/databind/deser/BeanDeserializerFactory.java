@@ -10,16 +10,12 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import com.fasterxml.jackson.databind.cfg.DeserializerFactoryConfig;
-import com.fasterxml.jackson.databind.deser.impl.FieldProperty;
-import com.fasterxml.jackson.databind.deser.impl.MethodProperty;
-import com.fasterxml.jackson.databind.deser.impl.ObjectIdReader;
-import com.fasterxml.jackson.databind.deser.impl.PropertyBasedObjectIdGenerator;
-import com.fasterxml.jackson.databind.deser.impl.SetterlessProperty;
+import com.fasterxml.jackson.databind.deser.impl.*;
 import com.fasterxml.jackson.databind.deser.std.JdkDeserializers;
 import com.fasterxml.jackson.databind.deser.std.ThrowableDeserializer;
+import com.fasterxml.jackson.databind.ext.OptionalHandlerFactory;
 import com.fasterxml.jackson.databind.introspect.*;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
-import com.fasterxml.jackson.databind.type.ClassKey;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.databind.util.ArrayBuilders;
 import com.fasterxml.jackson.databind.util.ClassUtil;
@@ -147,7 +143,7 @@ public class BeanDeserializerFactory
          */
         if (type.isAbstract()) {
             // [JACKSON-41] (v1.6): Let's make it possible to materialize abstract types.
-            JavaType concreteType = materializeAbstractType(config, beanDesc);
+            JavaType concreteType = materializeAbstractType(ctxt, type, beanDesc);
             if (concreteType != null) {
                 /* important: introspect actual implementation (abstract class or
                  * interface doesn't have constructors, for one)
@@ -158,7 +154,8 @@ public class BeanDeserializerFactory
         }
 
         // Otherwise, may want to check handlers for standard types, from superclass:
-        JsonDeserializer<Object> deser = findStdDeserializer(config, type);
+        @SuppressWarnings("unchecked")
+        JsonDeserializer<Object> deser = (JsonDeserializer<Object>) findStdDeserializer(ctxt, type, beanDesc);
         if (deser != null) {
             return deser;
         }
@@ -187,22 +184,22 @@ public class BeanDeserializerFactory
      * Method called by {@link BeanDeserializerFactory} to see if there might be a standard
      * deserializer registered for given type.
      */
-    @SuppressWarnings("unchecked")
-    protected JsonDeserializer<Object> findStdDeserializer(DeserializationConfig config,
-            JavaType type)
+    protected JsonDeserializer<?> findStdDeserializer(DeserializationContext ctxt,
+            JavaType type, BeanDescription beanDesc)
         throws JsonMappingException
     {
-        Class<?> cls = type.getRawClass();
-        // note: we do NOT check for custom deserializers here; that's for sub-class to do
-        JsonDeserializer<Object> deser = _simpleDeserializers.get(new ClassKey(cls));
+        // note: we do NOT check for custom deserializers here, caller has already
+        // done that
+        JsonDeserializer<?> deser = findDefaultDeserializer(ctxt, type, beanDesc);
         if (deser != null) {
             return deser;
         }
         
+        Class<?> cls = type.getRawClass();
         // [JACKSON-283]: AtomicReference is a rather special type...
         if (AtomicReference.class.isAssignableFrom(cls)) {
             // Must find parameterization
-            TypeFactory tf = config.getTypeFactory();
+            TypeFactory tf = ctxt.getTypeFactory();
             JavaType[] params = tf.findTypeParameters(type, AtomicReference.class);
             JavaType referencedType;
             if (params == null || params.length < 1) { // untyped (raw)
@@ -210,29 +207,32 @@ public class BeanDeserializerFactory
             } else {
                 referencedType = params[0];
             }
-            
-            JsonDeserializer<?> d2 = new JdkDeserializers.AtomicReferenceDeserializer(referencedType);
-            return (JsonDeserializer<Object>)d2;
+            return new JdkDeserializers.AtomicReferenceDeserializer(referencedType);
         }
-        // [JACKSON-386]: External/optional type handlers are handled somewhat differently
-        JsonDeserializer<?> d = optionalHandlers.findDeserializer(type, config);
-        if (d != null) {
-            return (JsonDeserializer<Object>)d;
-        }
-        return null;
+        return findOptionalStdDeserializer(ctxt, type, beanDesc);
+    }
+
+    /**
+     * Overridable method called after checking all other types.
+     * 
+     * @since 2.2
+     */
+    protected JsonDeserializer<?> findOptionalStdDeserializer(DeserializationContext ctxt,
+            JavaType type, BeanDescription beanDesc)
+        throws JsonMappingException
+    {
+        return OptionalHandlerFactory.instance.findDeserializer(type, ctxt.getConfig(), beanDesc);
     }
     
-    protected JavaType materializeAbstractType(DeserializationConfig config,
-            BeanDescription beanDesc)
+    protected JavaType materializeAbstractType(DeserializationContext ctxt,
+            JavaType type, BeanDescription beanDesc)
         throws JsonMappingException
     {
         final JavaType abstractType = beanDesc.getType();
-        
-        /* [JACKSON-502] (1.8): Now it is possible to have multiple resolvers too,
-         *   as they are registered via module interface.
-         */
+        // [JACKSON-502]: Now it is possible to have multiple resolvers too,
+        //   as they are registered via module interface.
         for (AbstractTypeResolver r : _factoryConfig.abstractTypeResolvers()) {
-            JavaType concrete = r.resolveAbstractType(config, abstractType);
+            JavaType concrete = r.resolveAbstractType(ctxt.getConfig(), abstractType);
             if (concrete != null) {
                 return concrete;
             }
@@ -407,7 +407,7 @@ public class BeanDeserializerFactory
          */
         AnnotatedMethod am = beanDesc.findMethod("initCause", INIT_CAUSE_PARAMS);
         if (am != null) { // should never be null
-            SimpleBeanPropertyDefinition propDef = new SimpleBeanPropertyDefinition(am, "cause");
+            SimpleBeanPropertyDefinition propDef = SimpleBeanPropertyDefinition.construct(ctxt.getConfig(), am, "cause");
             SettableBeanProperty prop = constructSettableProperty(ctxt, beanDesc, propDef,
                     am.getGenericParameterType(0));
             if (prop != null) {
@@ -548,7 +548,8 @@ public class BeanDeserializerFactory
                     }
                 }
                 if (prop == null) {
-                    throw ctxt.mappingException("Could not find creator property with name '"+name+"'");
+                    throw ctxt.mappingException("Could not find creator property with name '"
+                    		+name+"' (in class "+beanDesc.getBeanClass().getName()+")");
                 }
                 builder.addCreatorProperty(prop);
                 continue;
@@ -648,7 +649,8 @@ public class BeanDeserializerFactory
                 } else {
                     genericType = m.getRawType();
                 }
-                SimpleBeanPropertyDefinition propDef = new SimpleBeanPropertyDefinition(m);
+                SimpleBeanPropertyDefinition propDef = SimpleBeanPropertyDefinition.construct(
+                		ctxt.getConfig(), m);
                 builder.addBackReferenceProperty(name, constructSettableProperty(
                         ctxt, beanDesc, propDef, genericType));
             }
@@ -691,7 +693,8 @@ public class BeanDeserializerFactory
         }
         // we know it's a 2-arg method, second arg is the value
         JavaType type = beanDesc.bindingsForBeanType().resolveType(setter.getGenericParameterType(1));
-        BeanProperty.Std property = new BeanProperty.Std(setter.getName(), type, beanDesc.getClassAnnotations(), setter);
+        BeanProperty.Std property = new BeanProperty.Std(setter.getName(), type, null,
+                beanDesc.getClassAnnotations(), setter, false);
         type = resolveType(ctxt, beanDesc, type, setter);
 
         /* AnySetter can be annotated with @JsonClass (etc) just like a
@@ -730,7 +733,8 @@ public class BeanDeserializerFactory
         // note: this works since we know there's exactly one argument for methods
         JavaType t0 = beanDesc.resolveType(jdkType);
 
-        BeanProperty.Std property = new BeanProperty.Std(propDef.getName(), t0, beanDesc.getClassAnnotations(), mutator);
+        BeanProperty.Std property = new BeanProperty.Std(propDef.getName(), t0, propDef.getWrapperName(),
+                beanDesc.getClassAnnotations(), mutator, propDef.isRequired());
         JavaType type = resolveType(ctxt, beanDesc, t0, mutator);
         // did type change?
         if (type != t0) {

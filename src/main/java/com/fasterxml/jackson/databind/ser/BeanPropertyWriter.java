@@ -9,12 +9,8 @@ import java.util.HashMap;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.databind.*;
-import com.fasterxml.jackson.databind.introspect.AnnotatedField;
-import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
-import com.fasterxml.jackson.databind.introspect.AnnotatedMethod;
-import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
+import com.fasterxml.jackson.databind.introspect.*;
 import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonObjectFormatVisitor;
-import com.fasterxml.jackson.databind.jsonschema.JsonSchema;
 import com.fasterxml.jackson.databind.jsonschema.SchemaAware;
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -100,6 +96,13 @@ public class BeanPropertyWriter
      */
     protected final SerializedString _name;
 
+    /**
+     * Wrapper name to use for this element, if any
+     * 
+     * @since 2.2
+     */
+    protected final PropertyName _wrapperName;
+    
     /**
      * Type to use for locating serializer; normally same as return
      * type of the accessor method, but may be overridden by annotations.
@@ -188,6 +191,7 @@ public class BeanPropertyWriter
         _member = member;
         _contextAnnotations = contextAnnotations;
         _name = new SerializedString(propDef.getName());
+        _wrapperName = propDef.getWrapperName();
         _declaredType = declaredType;
         _serializer = (JsonSerializer<Object>) ser;
         _dynamicSerializers = (ser == null) ? PropertySerializerMap.emptyMap() : null;
@@ -222,6 +226,7 @@ public class BeanPropertyWriter
     protected BeanPropertyWriter(BeanPropertyWriter base, SerializedString name)
     {
         _name = name;
+        _wrapperName = base._wrapperName;
 
         _member = base._member;
         _contextAnnotations = base._contextAnnotations;
@@ -303,38 +308,43 @@ public class BeanPropertyWriter
     /**********************************************************
      */
     
-//    @Override
+    @Override
     public String getName() {
         return _name.getValue();
     }
 
-//    @Override
+    @Override
     public JavaType getType() {
         return _declaredType;
     }
 
-//  @Override
+    @Override
+    public PropertyName getWrapperName() {
+        return _wrapperName;
+    }
+
+    @Override
     public boolean isRequired() {
         return _isRequired;
     }
     
-//  @Override
+    @Override
     public <A extends Annotation> A getAnnotation(Class<A> acls) {
         return _member.getAnnotation(acls);
     }
 
-//  @Override
+    @Override
     public <A extends Annotation> A getContextAnnotation(Class<A> acls) {
         return _contextAnnotations.get(acls);
     }
 
-//    @Override
+    @Override
     public AnnotatedMember getMember() {
         return _member;
     }
 
 
-//  @Override
+    @Override
     public void depositSchemaProperty(JsonObjectFormatVisitor objectVisitor)
         throws JsonMappingException
     {
@@ -502,7 +512,7 @@ public class BeanPropertyWriter
         if (ser instanceof SchemaAware) {
             schemaNode =  ((SchemaAware) ser).getSchema(provider, hint, isOptional) ;
         } else {  
-            schemaNode = JsonSchema.getDefaultSchemaNode(); 
+            schemaNode = com.fasterxml.jackson.databind.jsonschema.JsonSchema.getDefaultSchemaNode(); 
         }
         propertiesNode.put(getName(), schemaNode);
     }

@@ -25,6 +25,10 @@ public class TestConfig
     }
 
     enum Alpha { A, B, C; }
+
+    public static class SimpleBean {
+        public int x, y;
+    }
     
     /*
     /**********************************************************
@@ -32,6 +36,22 @@ public class TestConfig
     /**********************************************************
      */
 
+    /* Test to verify that we don't overflow number of features; if we
+     * hit the limit, need to change implementation -- this test just
+     * gives low-water mark
+     */
+    public void testEnumIndexes()
+    {
+        int max = 0;
+        
+        for (DeserializationFeature f : DeserializationFeature.values()) {
+            max = Math.max(max, f.ordinal());
+        }
+        if (max >= 31) { // 31 is actually ok; 32 not
+            fail("Max number of DeserializationFeature enums reached: "+max);
+        }
+    }
+    
     public void testDefaults()
     {
         ObjectMapper m = new ObjectMapper();
@@ -87,5 +107,14 @@ public class TestConfig
         m.configure(MapperFeature.USE_ANNOTATIONS, false);
         // should still use the basic name handling here
         assertEquals(Alpha.B, m.readValue(quote("B"), Alpha.class));
+    }
+
+    public void testNoAccessOverrides() throws Exception
+    {
+        ObjectMapper m = new ObjectMapper();
+        m.disable(MapperFeature.CAN_OVERRIDE_ACCESS_MODIFIERS);
+        SimpleBean bean = m.readValue("{\"x\":1,\"y\":2}", SimpleBean.class);
+        assertEquals(1, bean.x);
+        assertEquals(2, bean.y);
     }
 }

@@ -112,6 +112,9 @@ public class ObjectWriter
         _serializerFactory = mapper._serializerFactory;
         _jsonFactory = mapper._jsonFactory;
 
+        if (rootType != null) {
+            rootType = rootType.withStaticTyping();
+        }
         _rootType = rootType;
         _prettyPrinter = pp;
         _schema = null;
@@ -166,7 +169,7 @@ public class ObjectWriter
         _serializerProvider = base._serializerProvider;
         _serializerFactory = base._serializerFactory;
         _jsonFactory = base._jsonFactory;
-        
+
         _rootType = rootType;
         _rootSerializer = rootSer;
         _prettyPrinter = pp;
@@ -184,7 +187,7 @@ public class ObjectWriter
         _serializerFactory = base._serializerFactory;
         _jsonFactory = base._jsonFactory;
         _schema = base._schema;
-        
+
         _rootType = base._rootType;
         _rootSerializer = base._rootSerializer;
         _prettyPrinter = base._prettyPrinter;
@@ -342,10 +345,13 @@ public class ObjectWriter
     
     public ObjectWriter withSchema(FormatSchema schema)
     {
-        return (_schema == schema) ? this :
-            new ObjectWriter(this, _config, _rootType, _rootSerializer, _prettyPrinter, schema);
+        if (_schema == schema) {
+            return this;
+        }
+        _verifySchemaType(schema);
+        return new ObjectWriter(this, _config, _rootType, _rootSerializer, _prettyPrinter, schema);
     }
-    
+
     /**
      * Method that will construct a new instance that uses specific type
      * as the root type for serialization, instead of runtime dynamic
@@ -356,10 +362,10 @@ public class ObjectWriter
      */
     public ObjectWriter withType(JavaType rootType)
     {
+        // 15-Mar-2013, tatu: Important! Indicate that static typing is needed:
+        rootType = rootType.withStaticTyping();
         JsonSerializer<Object> rootSer = _prefetchRootSerializer(_config, rootType);
-        return (rootType == _rootType) ? this
-        // type is stored here, no need to make a copy of config
-            : new ObjectWriter(this, _config, rootType, rootSer, _prettyPrinter, _schema);
+        return new ObjectWriter(this, _config, rootType, rootSer, _prettyPrinter, _schema);
     }    
 
     /**
@@ -453,6 +459,18 @@ public class ObjectWriter
         return _config.getTypeFactory();
     }
 
+    /**
+     * Diagnostics method that can be called to check whether this writer
+     * has pre-fetched serializer to use: pre-fetching improves performance
+     * when writer instances are reused as it avoids a per-call serializer
+     * lookup.
+     * 
+     * @since 2.2
+     */
+    public boolean hasPrefetchedSerializer() {
+        return _rootSerializer != null;
+    }
+    
     /*
     /**********************************************************
     /* Serialization methods; ones from ObjectCodec first
@@ -630,7 +648,20 @@ public class ObjectWriter
     /* Internal methods
     /**********************************************************
      */
-    
+
+    /**
+     * @since 2.2
+     */
+    protected void _verifySchemaType(FormatSchema schema)
+    {
+        if (schema != null) {
+            if (!_jsonFactory.canUseSchema(schema)) {
+                    throw new IllegalArgumentException("Can not use FormatSchema of type "+schema.getClass().getName()
+                            +" for format "+_jsonFactory.getFormatName());
+            }
+        }
+    }
+
     /**
      * Method called to configure the generator as necessary and then
      * call write functionality
@@ -736,7 +767,7 @@ public class ObjectWriter
      * by configuration. Method also is NOT to throw an exception if
      * access fails.
      */
-    protected final JsonSerializer<Object> _prefetchRootSerializer(
+    protected JsonSerializer<Object> _prefetchRootSerializer(
             SerializationConfig config, JavaType valueType)
     {
         if (valueType == null || !_config.isEnabled(SerializationFeature.EAGER_SERIALIZER_FETCH)) {
@@ -756,7 +787,7 @@ public class ObjectWriter
      * 
      * @since 2.1
      */
-    private final void _configureJsonGenerator(JsonGenerator jgen)
+    private void _configureJsonGenerator(JsonGenerator jgen)
     {
         if (_prettyPrinter != null) {
             PrettyPrinter pp = _prettyPrinter;

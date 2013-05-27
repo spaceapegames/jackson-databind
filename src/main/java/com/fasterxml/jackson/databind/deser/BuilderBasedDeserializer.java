@@ -162,8 +162,9 @@ public class BuilderBasedDeserializer
         case FIELD_NAME:
         case END_OBJECT: // added to resolve [JACKSON-319], possible related issues
             return finishBuild(ctxt, deserializeFromObject(jp, ctxt));
+        default:
+            throw ctxt.mappingException(getBeanClass());
         }
-        throw ctxt.mappingException(getBeanClass());
     }
 
     /**
@@ -271,6 +272,7 @@ public class BuilderBasedDeserializer
      * General version used when handling needs more advanced
      * features.
      */
+    @Override
     public Object deserializeFromObject(JsonParser jp, DeserializationContext ctxt)
         throws IOException, JsonProcessingException
     {
@@ -334,6 +336,7 @@ public class BuilderBasedDeserializer
      * due to non-guaranteed ordering possibly some other properties
      * as well.
      */
+    @Override
     protected final Object _deserializeUsingPropertyBased(final JsonParser jp,
             final DeserializationContext ctxt)
         throws IOException, JsonProcessingException

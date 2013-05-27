@@ -380,6 +380,26 @@ public class AnnotationIntrospectorPair
     }
 
     @Override
+    public Object findSerializationConverter(Annotated a)
+    {
+        Object ob = _primary.findSerializationConverter(a);
+        if (ob == null) {
+            ob = _secondary.findSerializationConverter(a);
+        }
+        return ob;
+    }
+
+    @Override
+    public Object findSerializationContentConverter(AnnotatedMember a)
+    {
+        Object ob = _primary.findSerializationContentConverter(a);
+        if (ob == null) {
+            ob = _secondary.findSerializationContentConverter(a);
+        }
+        return ob;
+    }
+
+    @Override
     public Class<?>[] findViews(Annotated a)
     {
         /* Theoretically this could be trickier, if multiple introspectors
@@ -554,8 +574,7 @@ public class AnnotationIntrospectorPair
     }
 
     @Override
-    public Class<?> findDeserializationContentType(Annotated am, JavaType baseContentType)
-    {
+    public Class<?> findDeserializationContentType(Annotated am, JavaType baseContentType) {
         Class<?> result = _primary.findDeserializationContentType(am, baseContentType);
         if (result == null) {
             result = _secondary.findDeserializationContentType(am, baseContentType);
@@ -563,6 +582,24 @@ public class AnnotationIntrospectorPair
         return result;
     }
 
+    @Override
+    public Object findDeserializationConverter(Annotated a) {
+        Object ob = _primary.findDeserializationConverter(a);
+        if (ob == null) {
+            ob = _secondary.findDeserializationConverter(a);
+        }
+        return ob;
+    }
+
+    @Override
+    public Object findDeserializationContentConverter(AnnotatedMember a) {
+        Object ob = _primary.findDeserializationContentConverter(a);
+        if (ob == null) {
+            ob = _secondary.findDeserializationContentConverter(a);
+        }
+        return ob;
+    }
+    
     // // // Deserialization: class annotations
 
     @Override

@@ -13,9 +13,11 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonToken;
+
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.deser.impl.*;
 import com.fasterxml.jackson.databind.deser.std.ContainerDeserializerBase;
+import com.fasterxml.jackson.databind.deser.std.StdDelegatingDeserializer;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.introspect.*;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
@@ -388,7 +390,7 @@ public abstract class BeanDeserializerBase
      * @since 2.1
      */
     protected abstract BeanDeserializerBase asArrayDeserializer();
-    
+
     /*
     /**********************************************************
     /* Validation, post-processing
@@ -400,7 +402,7 @@ public abstract class BeanDeserializerBase
      * after deserializer itself has been registered.
      * This is needed to handle recursive and transitive dependencies.
      */
-//  @Override
+    @Override
     public void resolve(DeserializationContext ctxt)
         throws JsonMappingException
     {
@@ -429,7 +431,12 @@ public abstract class BeanDeserializerBase
             SettableBeanProperty prop = origProp;
             // May already have deserializer from annotations, if so, skip:
             if (!prop.hasValueDeserializer()) {
-                prop = prop.withValueDeserializer(findDeserializer(ctxt, prop.getType(), prop));
+                // [Issue#125]: allow use of converters
+                JsonDeserializer<?> deser = findConvertingDeserializer(ctxt, prop);
+                if (deser == null) {
+                    deser = findDeserializer(ctxt, prop.getType(), prop);
+                }
+                prop = prop.withValueDeserializer(deser);
             } else { // may need contextual version
                 JsonDeserializer<Object> deser = prop.getValueDeserializer();
                 if (deser instanceof ContextualDeserializer) {
@@ -491,7 +498,7 @@ public abstract class BeanDeserializerBase
             AnnotatedWithParams delegateCreator = _valueInstantiator.getDelegateCreator();
             // Need to create a temporary property to allow contextual deserializers:
             BeanProperty.Std property = new BeanProperty.Std(null,
-                    delegateType, _classAnnotations, delegateCreator);
+                    delegateType, null, _classAnnotations, delegateCreator, false);
             _delegateDeserializer = findDeserializer(ctxt, delegateType, property);
         }
         
@@ -511,19 +518,43 @@ public abstract class BeanDeserializerBase
     }
 
     /**
+     * Helper method that can be used to see if specified property is annotated
+     * to indicate use of a converter for property value (in case of container types,
+     * it is container type itself, not key or content type).
+     * 
+     * @since 2.2
+     */
+    protected JsonDeserializer<Object> findConvertingDeserializer(DeserializationContext ctxt,
+            SettableBeanProperty prop)
+        throws JsonMappingException
+    {
+        final AnnotationIntrospector intr = ctxt.getAnnotationIntrospector();
+        if (intr != null) {
+            Object convDef = intr.findDeserializationConverter(prop.getMember());
+            if (convDef != null) {
+                Converter<Object,Object> conv = ctxt.converterInstance(prop.getMember(), convDef);
+                JavaType delegateType = conv.getInputType(ctxt.getTypeFactory());
+                JsonDeserializer<?> ser = ctxt.findContextualValueDeserializer(delegateType, prop);
+                return new StdDelegatingDeserializer<Object>(conv, delegateType, ser);
+            }
+        }
+        return null;
+    }
+    
+    /**
      * Although most of post-processing is done in resolve(), we only get
      * access to referring property's annotations here; and this is needed
      * to support per-property ObjectIds.
      * We will also consider Shape transformations (read from Array) at this
      * point, since it may come from either Class definition or property.
      */
-//  @Override
+    @Override
     public JsonDeserializer<?> createContextual(DeserializationContext ctxt,
             BeanProperty property) throws JsonMappingException
     {
         ObjectIdReader oir = _objectIdReader;
         String[] ignorals = null;
-
+        
         // First: may have an override for Object Id:
         final AnnotationIntrospector intr = ctxt.getAnnotationIntrospector();
         final AnnotatedMember accessor = (property == null || intr == null)
@@ -927,7 +958,8 @@ public abstract class BeanDeserializerBase
         // do we have it resolved?
         Object pojo = roid.item;
         if (pojo == null) { // not yet; should wait...
-            throw new IllegalStateException("Could not resolve Object Id ["+id+"] -- unresolved forward-reference?");
+            throw new IllegalStateException("Could not resolve Object Id ["+id+"] (for "
+                    +_beanType+") -- unresolved forward-reference?");
         }
         return pojo;
     }
@@ -956,6 +988,7 @@ public abstract class BeanDeserializerBase
             final DeserializationContext ctxt)
         throws IOException, JsonProcessingException;
 
+    @SuppressWarnings("incomplete-switch")
     public Object deserializeFromNumber(JsonParser jp, DeserializationContext ctxt)
         throws IOException, JsonProcessingException
     {
@@ -1026,6 +1059,7 @@ public abstract class BeanDeserializerBase
      * Method called to deserialize POJO value from a JSON floating-point
      * number.
      */
+    @SuppressWarnings("incomplete-switch")
     public Object deserializeFromDouble(JsonParser jp, DeserializationContext ctxt)
         throws IOException, JsonProcessingException
     {

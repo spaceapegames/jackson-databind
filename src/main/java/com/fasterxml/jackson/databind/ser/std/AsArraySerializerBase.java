@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
 import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonArrayFormatVisitor;
 import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrapper;
-import com.fasterxml.jackson.databind.jsonschema.JsonSchema;
 import com.fasterxml.jackson.databind.jsonschema.SchemaAware;
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -81,7 +80,7 @@ public abstract class AsArraySerializerBase<T>
         _elementType = src._elementType;
         _staticTyping = src._staticTyping;
         _valueTypeSerializer = vts;
-        _property = src._property;
+        _property = property;
         _elementSerializer = (JsonSerializer<Object>) elementSerializer;
         _dynamicSerializers = src._dynamicSerializers;
     }
@@ -101,7 +100,7 @@ public abstract class AsArraySerializerBase<T>
      * to <code>createContextual</code> of content serializer, if
      * known statically.
      */
-//  @Override
+    @Override
     public JsonSerializer<?> createContextual(SerializerProvider provider,
             BeanProperty property)
         throws JsonMappingException
@@ -128,16 +127,22 @@ public abstract class AsArraySerializerBase<T>
         if (ser == null) {
             ser = _elementSerializer;
         }
+        // 18-Feb-2013, tatu: May have a content converter:
+        ser = findConvertingContentSerializer(provider, property, ser);
         if (ser == null) {
-            // 30-Sep-2012, tatu: One more thing -- if explicit content type is annotated,
-            //   we can consider it a static case as well.
-            if (_elementType != null) {
-                if (_staticTyping || hasContentTypeAnnotation(provider, property)) {
-                    ser = provider.findValueSerializer(_elementType, property);
+            if (ser == null) {
+                // 30-Sep-2012, tatu: One more thing -- if explicit content type is annotated,
+                //   we can consider it a static case as well.
+                if (_elementType != null) {
+                    if (_staticTyping || hasContentTypeAnnotation(provider, property)) {
+                        ser = provider.findValueSerializer(_elementType, property);
+                    }
                 }
             }
-        } else if (ser instanceof ContextualSerializer) {
-            ser = ((ContextualSerializer) ser).createContextual(provider, property);
+        } else {
+            if (ser instanceof ContextualSerializer) {
+                ser = ((ContextualSerializer) ser).createContextual(provider, property);
+            }
         }
         if ((ser != _elementSerializer) || (property != _property) || _valueTypeSerializer != typeSer) {
             return withResolved(property, typeSer, ser);
@@ -233,7 +238,7 @@ public abstract class AsArraySerializerBase<T>
                 }
             }
             if (schemaNode == null) {
-                schemaNode = JsonSchema.getDefaultSchemaNode();
+                schemaNode = com.fasterxml.jackson.databind.jsonschema.JsonSchema.getDefaultSchemaNode();
             }
             o.put("items", schemaNode);
         }

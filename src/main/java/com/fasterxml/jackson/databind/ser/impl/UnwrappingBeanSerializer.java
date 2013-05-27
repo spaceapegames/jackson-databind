@@ -3,7 +3,6 @@ package com.fasterxml.jackson.databind.ser.impl;
 import java.io.IOException;
 
 import com.fasterxml.jackson.core.*;
-import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.ser.*;
 import com.fasterxml.jackson.databind.ser.std.BeanSerializerBase;
@@ -95,7 +94,7 @@ public class UnwrappingBeanSerializer
         throws IOException, JsonGenerationException
     {
         if (_objectIdWriter != null) {
-            serializeWithObjectId(bean, jgen, provider);
+            _serializeWithObjectId(bean, jgen, provider, false);
             return;
         }
         if (_propertyFilterId != null) {
@@ -103,40 +102,6 @@ public class UnwrappingBeanSerializer
         } else {
             serializeFields(bean, jgen, provider);
         }
-    }
-
-    private final void serializeWithObjectId(Object bean, JsonGenerator jgen, SerializerProvider provider)
-        throws IOException, JsonGenerationException
-    {
-        final ObjectIdWriter w = _objectIdWriter;
-        WritableObjectId oid = provider.findObjectId(bean, w.generator);
-        Object id = oid.id;
-        
-        if (id != null) { // have seen before; serialize just id
-            oid.serializer.serialize(id, jgen, provider);
-            return;
-        }
-        // if not, bit more work:
-        oid.serializer = w.serializer;
-        oid.id = id = oid.generator.generateId(bean);
-        // possibly. Or maybe not:
-        if (w.alwaysAsId) { 
-            oid.serializer.serialize(id, jgen, provider);
-            return;
-        }
-        
-        jgen.writeStartObject();
-        SerializedString name = w.propertyName;
-        if (name != null) {
-            jgen.writeFieldName(name);
-            w.serializer.serialize(id, jgen, provider);
-        }
-        if (_propertyFilterId != null) {
-            serializeFieldsFiltered(bean, jgen, provider);
-        } else {
-            serializeFields(bean, jgen, provider);
-        }
-        jgen.writeEndObject();
     }
     
     /*

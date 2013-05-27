@@ -24,12 +24,20 @@ public class TestFormatSchema extends BaseMapTest
      */
 
     static class MySchema implements FormatSchema {
-//      @Override
+        @Override
         public String getSchemaType() { return "test"; }
     }
     
     static class FactoryWithSchema extends JsonFactory
     {
+        @Override
+        public String getFormatName() { return "test"; }
+
+        @Override
+        public boolean canUseSchema(FormatSchema schema) {
+            return (schema instanceof MySchema);
+        }
+        
         private static final long serialVersionUID = 1L;
         @Override
         protected JsonParser _createParser(Reader r, IOContext ctxt)
@@ -162,6 +170,9 @@ public class TestFormatSchema extends BaseMapTest
 
         @Override
         public void writeNull() throws IOException, JsonGenerationException { }
+
+        @Override
+        public void writeNumber(short v) throws IOException { }
 
         @Override
         public void writeNumber(int v) throws IOException { }

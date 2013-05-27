@@ -2,6 +2,7 @@ package com.fasterxml.jackson.databind.deser;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
 
 import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -36,6 +37,15 @@ public class TestCollectionDeserialization
 
     static class XBean {
         public int x;
+    }
+
+    // [Issue#199]
+    static class ListAsIterable {
+        public Iterable<String> values;
+    }
+
+    static class ListAsIterableX {
+        public Iterable<XBean> nums;
     }
     
     /*
@@ -143,5 +153,47 @@ public class TestCollectionDeserialization
         ObjectReader r = MAPPER.reader(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
         List<?> result = r.withType(List.class).readValue(quote(""));
         assertNull(result);
+    }
+
+    // [Issue#161]
+    public void testArrayBlockingQueue() throws Exception
+    {
+        // ok to skip polymorphic type to get Object
+        ArrayBlockingQueue<?> q = MAPPER.readValue("[1, 2, 3]", ArrayBlockingQueue.class);
+        assertNotNull(q);
+        assertEquals(3, q.size());
+        assertEquals(Integer.valueOf(1), q.take());
+        assertEquals(Integer.valueOf(2), q.take());
+        assertEquals(Integer.valueOf(3), q.take());
+    }
+
+    // [Issue#199]
+    public void testIterableWithStrings() throws Exception
+    {
+        String JSON = "{ \"values\":[\"a\",\"b\"]}";
+        ListAsIterable w = MAPPER.readValue(JSON, ListAsIterable.class);
+        assertNotNull(w);
+        assertNotNull(w.values);
+        Iterator<String> it = w.values.iterator();
+        assertTrue(it.hasNext());
+        assertEquals("a", it.next());
+        assertEquals("b", it.next());
+        assertFalse(it.hasNext());
+    }
+
+    public void testIterableWithBeans() throws Exception
+    {
+        String JSON = "{ \"nums\":[{\"x\":1},{\"x\":2}]}";
+        ListAsIterableX w = MAPPER.readValue(JSON, ListAsIterableX.class);
+        assertNotNull(w);
+        assertNotNull(w.nums);
+        Iterator<XBean> it = w.nums.iterator();
+        assertTrue(it.hasNext());
+        XBean xb = it.next();
+        assertNotNull(xb);
+        assertEquals(1, xb.x);
+        xb = it.next();
+        assertEquals(2, xb.x);
+        assertFalse(it.hasNext());
     }
 }

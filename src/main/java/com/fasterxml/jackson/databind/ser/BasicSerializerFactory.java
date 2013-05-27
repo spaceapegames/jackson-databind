@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.ser.impl.StringCollectionSerializer;
 import com.fasterxml.jackson.databind.ser.std.*;
 import com.fasterxml.jackson.databind.type.*;
 import com.fasterxml.jackson.databind.util.ClassUtil;
+import com.fasterxml.jackson.databind.util.Converter;
 import com.fasterxml.jackson.databind.util.EnumValues;
 import com.fasterxml.jackson.databind.util.TokenBuffer;
 
@@ -34,12 +35,11 @@ import com.fasterxml.jackson.databind.util.TokenBuffer;
  * no additional introspection or customizability of these types,
  * this factory is essentially stateless.
  */
+@SuppressWarnings("serial")
 public abstract class BasicSerializerFactory
     extends SerializerFactory
     implements java.io.Serializable
 {
-    private static final long serialVersionUID = -1416617628045738132L;
-
     /*
     /**********************************************************
     /* Configuration, lookup tables/maps
@@ -82,7 +82,7 @@ public abstract class BasicSerializerFactory
         final JsonSerializer<?> ns = new NumberSerializers.NumberSerializer();
         _concrete.put(BigInteger.class.getName(), ns);
         _concrete.put(BigDecimal.class.getName(), ns);
-        
+
         // Other discrete non-container types:
         // First, Date/Time zoo:
         _concrete.put(Calendar.class.getName(), CalendarSerializer.instance);
@@ -90,11 +90,13 @@ public abstract class BasicSerializerFactory
         _concrete.put(java.util.Date.class.getName(), dateSer);
         // note: timestamps are very similar to java.util.Date, thus serialized as such
         _concrete.put(java.sql.Timestamp.class.getName(), dateSer);
-        _concrete.put(java.sql.Date.class.getName(), new SqlDateSerializer());
-        _concrete.put(java.sql.Time.class.getName(), new SqlTimeSerializer());
+        
+        // leave some of less commonly used ones as lazy, no point in proactive construction
+        _concreteLazy.put(java.sql.Date.class.getName(), SqlDateSerializer.class);
+        _concreteLazy.put(java.sql.Time.class.getName(), SqlTimeSerializer.class);
 
         // And then other standard non-structured JDK types
-        for (Map.Entry<Class<?>,Object> en : new StdJdkSerializers().provide()) {
+        for (Map.Entry<Class<?>,Object> en : StdJdkSerializers.all()) {
             Object value = en.getValue();
             if (value instanceof JsonSerializer<?>) {
                 _concrete.put(en.getKey().getName(), (JsonSerializer<?>) value);
@@ -123,12 +125,6 @@ public abstract class BasicSerializerFactory
      * factory), new version created via copy-constructor (fluent-style)
      */
     protected final SerializerFactoryConfig _factoryConfig;
-    
-    /**
-     * Helper object used to deal with serializers for optional JDK types (like ones
-     * omitted from GAE, Android)
-     */
-    protected OptionalHandlerFactory optionalHandlers = OptionalHandlerFactory.instance;
 
     /*
     /**********************************************************
@@ -298,19 +294,18 @@ public abstract class BasicSerializerFactory
         Class<?> raw = type.getRawClass();
         String clsName = raw.getName();
         JsonSerializer<?> ser = _concrete.get(clsName);
-        if (ser != null) {
-            return ser;
-        }
-        Class<? extends JsonSerializer<?>> serClass = _concreteLazy.get(clsName);
-        if (serClass != null) {
-            try {
-                return serClass.newInstance();
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to instantiate standard serializer (of type "+serClass.getName()+"): "
-                        +e.getMessage(), e);
+        if (ser == null) {
+            Class<? extends JsonSerializer<?>> serClass = _concreteLazy.get(clsName);
+            if (serClass != null) {
+                try {
+                    return serClass.newInstance();
+                } catch (Exception e) {
+                    throw new IllegalStateException("Failed to instantiate standard serializer (of type "+serClass.getName()+"): "
+                            +e.getMessage(), e);
+                }
             }
         }
-        return null;
+        return ser;
     }
 
     /**
@@ -379,7 +374,7 @@ public abstract class BasicSerializerFactory
         }
         
         // Then check for optional/external serializers [JACKSON-386]
-        JsonSerializer<?> ser = optionalHandlers.findSerializer(prov.getConfig(), type);
+        JsonSerializer<?> ser = findOptionalStdSerializer(prov, type, beanDesc, staticTyping);
         if (ser != null) {
             return ser;
         }
@@ -397,6 +392,18 @@ public abstract class BasicSerializerFactory
             return DateSerializer.instance;
         }
         return null;
+    }
+
+    /**
+     * Overridable method called after checking all other types.
+     * 
+     * @since 2.2
+     */
+    protected JsonSerializer<?> findOptionalStdSerializer(SerializerProvider prov, 
+            JavaType type, BeanDescription beanDesc, boolean staticTyping)
+        throws JsonMappingException
+    {
+        return OptionalHandlerFactory.instance.findSerializer(prov.getConfig(), type, beanDesc);
     }
         
     /**
@@ -434,6 +441,7 @@ public abstract class BasicSerializerFactory
      * that tells the class to use for serialization.
      * Returns null if no such annotation found.
      */
+    @SuppressWarnings("unchecked")
     protected JsonSerializer<Object> findSerializerFromAnnotation(SerializerProvider prov,
             Annotated a)
         throws JsonMappingException
@@ -442,9 +450,40 @@ public abstract class BasicSerializerFactory
         if (serDef == null) {
             return null;
         }
-        return prov.serializerInstance(a, serDef);
+        JsonSerializer<Object> ser = prov.serializerInstance(a, serDef);
+        // One more thing however: may need to also apply a converter:
+        return (JsonSerializer<Object>) findConvertingSerializer(prov, a, ser);
     }
 
+    /**
+     * Helper method that will check whether given annotated entity (usually class,
+     * but may also be a property accessor) indicates that a {@link Converter} is to
+     * be used; and if so, to construct and return suitable serializer for it.
+     * If not, will simply return given serializer as is.
+     */
+    protected JsonSerializer<?> findConvertingSerializer(SerializerProvider prov,
+            Annotated a, JsonSerializer<?> ser)
+        throws JsonMappingException
+    {
+        Converter<Object,Object> conv = findConverter(prov, a);
+        if (conv == null) {
+            return ser;
+        }
+        JavaType delegateType = conv.getOutputType(prov.getTypeFactory());
+        return new StdDelegatingSerializer(conv, delegateType, ser);
+    }
+
+    protected Converter<Object,Object> findConverter(SerializerProvider prov,
+            Annotated a)
+        throws JsonMappingException
+    {
+        Object convDef = prov.getAnnotationIntrospector().findSerializationConverter(a);
+        if (convDef == null) {
+            return null;
+        }
+        return prov.converterInstance(a, convDef);
+    }
+    
     /*
     /**********************************************************
     /* Factory methods, container types:
@@ -473,6 +512,17 @@ public abstract class BasicSerializerFactory
         throws JsonMappingException
     {
         final SerializationConfig config = prov.getConfig();
+
+        /* [Issue#23], 15-Mar-2013, tatu: must force static handling of root value type,
+         *   with just one important exception: if value type is "untyped", let's
+         *   leave it as is; no clean way to make it work.
+         */
+        if (!staticTyping && type.useStaticType()) {
+            if (!type.isContainerType() || type.getContentType().getRawClass() != Object.class) {
+                staticTyping = true;
+            }
+        }
+        
         // Let's see what we can learn about element/content/value type, type serializer for it:
         JavaType elementType = type.getContentType();
         TypeSerializer elementTypeSerializer = createTypeSerializer(config,
@@ -927,15 +977,9 @@ public abstract class BasicSerializerFactory
         AnnotationIntrospector intr = config.getAnnotationIntrospector();
         JsonSerialize.Typing t = intr.findSerializationTyping(beanDesc.getClassInfo());
         if (t != null) {
-            if (t == JsonSerialize.Typing.STATIC) {
-                return true;
-            }
-        } else {
-            if (config.isEnabled(MapperFeature.USE_STATIC_TYPING)) {
-                return true;
-            }
+            return (t == JsonSerialize.Typing.STATIC);
         }
-        return false;
+        return config.isEnabled(MapperFeature.USE_STATIC_TYPING);
     }
 
     protected Class<?> _verifyAsClass(Object src, String methodName, Class<?> noneClass)

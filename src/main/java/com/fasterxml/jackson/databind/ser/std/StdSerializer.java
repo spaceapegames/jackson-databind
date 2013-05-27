@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrappe
 import com.fasterxml.jackson.databind.jsonschema.SchemaAware;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.util.Converter;
 
 /**
  * Base class used by all standard serializers, and can also
@@ -81,7 +82,7 @@ public abstract class StdSerializer<T>
      * Default implementation simply claims type is "string"; usually
      * overriden by custom serializers.
      */
-//  @Override
+    @Override
     public JsonNode getSchema(SerializerProvider provider, Type typeHint)
         throws JsonMappingException
     {
@@ -92,7 +93,7 @@ public abstract class StdSerializer<T>
      * Default implementation simply claims type is "string"; usually
      * overriden by custom serializers.
      */
-//    @Override
+    @Override
     public JsonNode getSchema(SerializerProvider provider, Type typeHint, boolean isOptional)
         throws JsonMappingException
     {
@@ -132,7 +133,7 @@ public abstract class StdSerializer<T>
     public void acceptJsonFormatVisitor(JsonFormatVisitorWrapper visitor, JavaType typeHint)
         throws JsonMappingException
     {
-    	visitor.expectAnyFormat(typeHint);
+        visitor.expectAnyFormat(typeHint);
     }
             
     /*
@@ -223,5 +224,34 @@ public abstract class StdSerializer<T>
      */
     protected boolean isDefaultSerializer(JsonSerializer<?> serializer) {
         return (serializer != null && serializer.getClass().getAnnotation(JacksonStdImpl.class) != null);
+    }
+
+    /**
+     * Helper method that can be used to see if specified property has annotation
+     * indicating that a converter is to be used for contained values (contents
+     * of structured types; array/List/Map values)
+     * 
+     * @param existingSerializer (optional) configured content
+     *    serializer if one already exists.
+     * 
+     * @since 2.2
+     */
+    protected JsonSerializer<?> findConvertingContentSerializer(SerializerProvider provider,
+            BeanProperty prop, JsonSerializer<?> existingSerializer)
+        throws JsonMappingException
+    {
+        final AnnotationIntrospector intr = provider.getAnnotationIntrospector();
+        if (intr != null && prop != null) {
+            Object convDef = intr.findSerializationContentConverter(prop.getMember());
+            if (convDef != null) {
+                Converter<Object,Object> conv = provider.converterInstance(prop.getMember(), convDef);
+                JavaType delegateType = conv.getOutputType(provider.getTypeFactory());
+                if (existingSerializer == null) {
+                    existingSerializer = provider.findValueSerializer(delegateType, prop);
+                }
+                return new StdDelegatingSerializer(conv, delegateType, existingSerializer);
+            }
+        }
+        return existingSerializer;
     }
 }

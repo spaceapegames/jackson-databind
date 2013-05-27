@@ -63,8 +63,8 @@ public final class IndexedStringListSerializer
     /* Post-processing
     /**********************************************************
      */
-    
-//  @Override
+
+    @Override
     public JsonSerializer<?> createContextual(SerializerProvider provider,
             BeanProperty property)
         throws JsonMappingException
@@ -87,6 +87,8 @@ public final class IndexedStringListSerializer
         if (ser == null) {
             ser = _serializer;
         }
+        // #124: May have a content converter
+        ser = findConvertingContentSerializer(provider, property, ser);
         if (ser == null) {
             ser = provider.findValueSerializer(String.class, property);
         } else if (ser instanceof ContextualSerializer) {
@@ -113,13 +115,30 @@ public final class IndexedStringListSerializer
     public void serialize(List<String> value, JsonGenerator jgen, SerializerProvider provider)
         throws IOException, JsonGenerationException
     {
+        final int len = value.size();
+        // [JACKSON-805]
+        if ((len == 1) && provider.isEnabled(SerializationFeature.WRITE_SINGLE_ELEM_ARRAYS_UNWRAPPED)) {
+            _serializeUnwrapped(value, jgen, provider);
+            return;
+        }
+        
         jgen.writeStartArray();
         if (_serializer == null) {
-            serializeContents(value, jgen, provider);
+            serializeContents(value, jgen, provider, len);
         } else {
-            serializeUsingCustom(value, jgen, provider);
+            serializeUsingCustom(value, jgen, provider, len);
         }
         jgen.writeEndArray();
+    }
+
+    private final void _serializeUnwrapped(List<String> value, JsonGenerator jgen, SerializerProvider provider)
+        throws IOException, JsonGenerationException
+    {
+        if (_serializer == null) {
+            serializeContents(value, jgen, provider, 1);
+        } else {
+            serializeUsingCustom(value, jgen, provider, 1);
+        }
     }
     
     @Override
@@ -127,21 +146,22 @@ public final class IndexedStringListSerializer
             TypeSerializer typeSer)
         throws IOException, JsonGenerationException
     {
+        final int len = value.size();
         typeSer.writeTypePrefixForArray(value, jgen);
         if (_serializer == null) {
-            serializeContents(value, jgen, provider);
+            serializeContents(value, jgen, provider, len);
         } else {
-            serializeUsingCustom(value, jgen, provider);
+            serializeUsingCustom(value, jgen, provider, len);
         }
         typeSer.writeTypeSuffixForArray(value, jgen);
     }
     
-    private final void serializeContents(List<String> value, JsonGenerator jgen, SerializerProvider provider)
+    private final void serializeContents(List<String> value, JsonGenerator jgen, SerializerProvider provider,
+            int len)
         throws IOException, JsonGenerationException
     {
         int i = 0;
         try {
-            final int len = value.size();
             for (; i < len; ++i) {
                 String str = value.get(i);
                 if (str == null) {
@@ -155,12 +175,12 @@ public final class IndexedStringListSerializer
         }
     }
 
-    private final void serializeUsingCustom(List<String> value, JsonGenerator jgen, SerializerProvider provider)
+    private final void serializeUsingCustom(List<String> value, JsonGenerator jgen, SerializerProvider provider,
+            int len)
         throws IOException, JsonGenerationException
     {
         int i = 0;
         try {
-            final int len = value.size();
             final JsonSerializer<String> ser = _serializer;
             for (i = 0; i < len; ++i) {
                 String str = value.get(i);

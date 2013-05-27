@@ -61,6 +61,9 @@ public final class BigIntegerNode
     }
 
     @Override
+    public short shortValue() { return _value.shortValue(); }
+
+    @Override
     public int intValue() { return _value.intValue(); }
 
     @Override
@@ -68,6 +71,9 @@ public final class BigIntegerNode
 
     @Override
     public BigInteger bigIntegerValue() { return _value; }
+
+    @Override
+    public float floatValue() { return _value.floatValue(); }
 
     @Override
     public double doubleValue() { return _value.doubleValue(); }

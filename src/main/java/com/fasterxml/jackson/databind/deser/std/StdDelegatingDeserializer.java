@@ -7,8 +7,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
+import com.fasterxml.jackson.databind.deser.ResolvableDeserializer;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
-import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.databind.util.Converter;
 
 /**
@@ -28,7 +28,7 @@ import com.fasterxml.jackson.databind.util.Converter;
  */
 public class StdDelegatingDeserializer<T>
     extends StdDeserializer<T>
-    implements ContextualDeserializer
+    implements ContextualDeserializer, ResolvableDeserializer
 {
     private static final long serialVersionUID = 1L;
 
@@ -60,7 +60,7 @@ public class StdDelegatingDeserializer<T>
     }
     
     @SuppressWarnings("unchecked")
-    protected StdDelegatingDeserializer(Converter<Object,T> converter,
+    public StdDelegatingDeserializer(Converter<Object,T> converter,
             JavaType delegateType, JsonDeserializer<?> delegateDeserializer)
     {
         super(delegateType);
@@ -87,21 +87,32 @@ public class StdDelegatingDeserializer<T>
     /* Contextualization
     /**********************************************************
      */
-    
 
+    @Override
+    public void resolve(DeserializationContext ctxt)
+        throws JsonMappingException
+    {
+        if (_delegateDeserializer != null && _delegateDeserializer instanceof ResolvableDeserializer) {
+            ((ResolvableDeserializer) _delegateDeserializer).resolve(ctxt);
+        }
+    }
+    
+    @Override
     public JsonDeserializer<?> createContextual(DeserializationContext ctxt, BeanProperty property)
         throws JsonMappingException
     {
-        // First: figure out what is the fully generic delegate type:
-        TypeFactory tf = ctxt.getTypeFactory();
-        JavaType implType = tf.constructType(_converter.getClass());
-        JavaType[] params = tf.findTypeParameters(implType, Converter.class);
-        if (params == null || params.length != 2) {
-            throw new JsonMappingException("Could not determine Converter parameterization for "
-                    +implType);
+        // First: if already got serializer to delegate to, contextualize it:
+        if (_delegateDeserializer != null) {
+            if (_delegateDeserializer instanceof ContextualDeserializer) {
+                JsonDeserializer<?> deser = ((ContextualDeserializer)_delegateDeserializer).createContextual(ctxt, property);
+                if (deser != _delegateDeserializer) {
+                    return withDelegate(_converter, _delegateType, deser);
+                }
+            }
+            return this;
         }
-        // and then we can find serializer to delegate to, construct a new instance:
-        JavaType delegateType = params[0];
+        // Otherwise: figure out what is the fully generic delegate type, then find deserializer
+        JavaType delegateType = _converter.getInputType(ctxt.getTypeFactory());
         return withDelegate(_converter, delegateType,
                 ctxt.findContextualValueDeserializer(delegateType, property));
     }

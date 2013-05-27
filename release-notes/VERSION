@@ -4,38 +4,113 @@ New minor version.
 
 Fixes:
 
-* [Issue#118]: JsonTypeInfo.as.EXTERNAL_PROPERTY not working correctly
+#23: Fixing typing of root-level collections
+#118: JsonTypeInfo.as.EXTERNAL_PROPERTY not working correctly
  with missing type id, scalar types
-* [Issue#144]: MissingNode.isValueNode() should return 'false'
+#130: TimeZone not set for GregorianCalendar, even if configured
+#144: MissingNode.isValueNode() should return 'false'
  (reported by 'fge@github')
-* [Issue#146]: Creator properties were not being renamed as expected
+#146: Creator properties were not being renamed as expected
  (contributed by Christoper C)
+#188: Problem with ObjectId serialization, 'alwaysAsId' references
 
 Improvements:
 
-* [Issue#116]: JavaType implements `java.lang.reflect.Type` (as does `TypeReference`)
-* [Issue#147]: Defer reporting of problems with missing creator parameters
+#116: JavaType implements `java.lang.reflect.Type` (as does `TypeReference`)
+#147: Defer reporting of problems with missing creator parameters
  (contributed by Christoper C)
+#155: Make `ObjectNode` and `ArrayNode` final (other node types already were)
+ (requested by fge@github)
+#161: Add deserializer for java.util.concurrent.ArrayBlockingQueue
+#173: Add 'JsonNode.traverse(ObjectCodec)' for convenience
+#181: Improve error reporting for missing '_valueDeserializer'
+#194: Add `FloatNode` type in tree model (JsonNode)
+ (requested by msteiger@github)
+#199: Allow deserializing `Iterable` instances (as basic `Collection`s)
+ (requested by electrum@github)
+#206: Make 'ObjectMapper.createDeserializationContext()' overridable
+ (requested by noter@github)
+#207: Add explicit support for `short` datatypes, for tree model
+ (contributed by msteiger@github)
 
 New features:
 
-* [Issue#120]: Extend BeanDeserializerModifier to work with non-POJO deserializers
-* [Issue#121]: Extend BeanSerializerModifier to work with non-POJO serializers
-* [Issue#140]: Add 'SerializationFeature.WRITE_BIGDECIMAL_AS_PLAIN' to allow forcing
+#120: Extend BeanDeserializerModifier to work with non-POJO deserializers
+#121: Extend BeanSerializerModifier to work with non-POJO serializers
+#124: Add support for serialization converters (@JsonSerializer(converter=...))
+#124: Add support for deserialization converters (@JsonDeserializer(converter=...))
+#140: Add 'SerializationFeature.WRITE_BIGDECIMAL_AS_PLAIN' to allow forcing
   of non-scientific notation when serializing BigDecimals.
  (suggested by phedny@github)
+#148: Add 'DeserializationFeature.FAIL_ON_INVALID_SUBTYPE`, which allows mapping
+  entries with missing or invalid type id into null references (instead of failing).
+  Also allows use of '@JsonTypeInfo.defaultImpl = NoClass.class' as alternative.
+#159: Add more accessors in 'MappingIterator': getParser(), getParserSchema(),
+  readAll()
+ (suggested by Tom D)
+#190: Add 'MapperFeature.ALLOW_FINAL_FIELDS_AS_MUTATORS' (default: true) for
+ pruning out final fields (to avoid using as mutators)
+ (requested by Eric T)
+#195: Add 'MapperFeature.INFER_PROPERTY_MUTATORS' (default: enabled) for finer
+  control of what mutators are auto-detected.
+ (requested by Dain S)
+#198: Add SPI metadata, handling in ObjectMapper (findModules()), for
+  automatic registration of auto-detected extension modules
+ (suggested by 'beamerblvd@github')
+#203: Added new features to support advanced date/time handling:
+  - SerializationFeature.WRITE_DATE_TIMESTAMPS_AS_NANOSECONDS
+  - DeserializationFeature.READ_DATE_TIMESTAMPS_AS_NANOSECONDS
+  - DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE
 
 Other:
 
-* [Issue#126]: Update JDK baseline to 1.6
+#126: Update JDK baseline to 1.6
 * API under 'com.fasterxml.jackson.databind.jsonFormatVisitors' changed significantly
   based on experiences with external JSON Schema generator.
 * Version information accessed via code-generated access class, instead of reading
   VERSION.txt
+* Added 2 methods in Converter interface: getInputType(), getOutputType(),
+  to allow programmatic overrides (needed by JAXB annotation module)
 
 ------------------------------------------------------------------------
 === History: ===
 ------------------------------------------------------------------------
+
+2.1.4 (26-Feb-2013)
+
+* [JACKSON-887]: StackOverflow with parameterized sub-class field
+ (reported by Alexander M)
+* [#130]: TimeZone not set for GregorianCalendar, when deserializing
+* [#157]: NPE when registering module twice
+* [#162]: JsonNodeFactory: work around an old bug with BigDecimal and zero
+ (submitted by fge@github)
+* [#166]: Incorrect optimization for `ObjectMapper.convertValue(Class)`
+ (reported by Eric T)
+* [#167]: Problems with @JsonValue, polymorphic types (regression from 1.x)
+ (reported by Eric T)
+* [#170]: Problems deserializing `java.io.File` if creator auto-discovery disabled
+ (reported by Eric T)
+* [#175]: NPE for JsonMappingException, if no path is specified
+ (reported by bramp@github)
+
+2.1.3 (19-Jan-2013)
+
+* [Issue#141]: ACCEPT_EMPTY_STRING_AS_NULL_OBJECT not working for enums
+* [Issue#142]: Serialization of class containing EnumMap with polymorphic enum
+  fails to generate class type data
+ (reported by kidavis4@github)
+
+2.1.2 (04-Dec-2012)
+
+* [Issue#106]: NPE in ObjectArraySerializer.createContextual(...)
+* [Issue#117]: HandlerInstantiator defaulting not working
+ (reported by Alexander B)
+* [Issue#118]: Problems with JsonTypeInfo.As.EXTERNAL_PROPERTY, scalar values
+ (reported by Adva11@github)
+* [Issue#119]: Problems with @JsonValue, JsonTypeInfo.As.EXTERNAL_PROPERTY
+ (reported by Adva11@github)
+* [Issue#122]: ObjectMapper.copy() was not copying underlying mix-in map
+ (reported by rzlo@github)
 
 2.1.1 (11-Nov-2012)
 

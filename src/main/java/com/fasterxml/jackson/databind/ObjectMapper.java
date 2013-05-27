@@ -20,7 +20,6 @@ import com.fasterxml.jackson.databind.cfg.MapperConfig;
 import com.fasterxml.jackson.databind.deser.*;
 import com.fasterxml.jackson.databind.introspect.*;
 import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrapper;
-import com.fasterxml.jackson.databind.jsonschema.JsonSchema;
 import com.fasterxml.jackson.databind.jsontype.*;
 import com.fasterxml.jackson.databind.jsontype.impl.StdSubtypeResolver;
 import com.fasterxml.jackson.databind.jsontype.impl.StdTypeResolverBuilder;
@@ -493,7 +492,7 @@ public class ObjectMapper
     
     /*
     /**********************************************************
-    /* Module registration
+    /* Module registration, discovery
     /**********************************************************
      */
 
@@ -526,68 +525,68 @@ public class ObjectMapper
         {
             // // // Accessors
 
-//          @Override
+            @Override
             public Version getMapperVersion() {
                 return version();
             }
 
             @SuppressWarnings("unchecked")
-//          @Override
+            @Override
             public <C extends ObjectCodec> C getOwner() {
                 // why do we need the cast here?!?
                 return (C) mapper;
             }
 
-//          @Override
+            @Override
             public TypeFactory getTypeFactory() {
                 return _typeFactory;
             }
             
-//          @Override
+            @Override
             public boolean isEnabled(MapperFeature f) {
                 return mapper.isEnabled(f);
             }
 
-//          @Override
+            @Override
             public boolean isEnabled(DeserializationFeature f) {
                 return mapper.isEnabled(f);
             }
             
-//          @Override
+            @Override
             public boolean isEnabled(SerializationFeature f) {
                 return mapper.isEnabled(f);
             }
 
-//          @Override
+            @Override
             public boolean isEnabled(JsonFactory.Feature f) {
                 return mapper.isEnabled(f);
             }
 
-//          @Override
+            @Override
             public boolean isEnabled(JsonParser.Feature f) {
                 return mapper.isEnabled(f);
             }
             
-//          @Override
+            @Override
             public boolean isEnabled(JsonGenerator.Feature f) {
                 return mapper.isEnabled(f);
             }
             
             // // // Methods for registering handlers: deserializers
             
-//          @Override
+            @Override
             public void addDeserializers(Deserializers d) {
                 DeserializerFactory df = mapper._deserializationContext._factory.withAdditionalDeserializers(d);
                 mapper._deserializationContext = mapper._deserializationContext.with(df);
             }
 
-//          @Override
+            @Override
             public void addKeyDeserializers(KeyDeserializers d) {
                 DeserializerFactory df = mapper._deserializationContext._factory.withAdditionalKeyDeserializers(d);
                 mapper._deserializationContext = mapper._deserializationContext.with(df);
             }
 
-//          @Override
+            @Override
             public void addBeanDeserializerModifier(BeanDeserializerModifier modifier) {
                 DeserializerFactory df = mapper._deserializationContext._factory.withDeserializerModifier(modifier);
                 mapper._deserializationContext = mapper._deserializationContext.with(df);
@@ -595,76 +594,76 @@ public class ObjectMapper
             
             // // // Methods for registering handlers: serializers
             
-//          @Override
+            @Override
             public void addSerializers(Serializers s) {
                 mapper._serializerFactory = mapper._serializerFactory.withAdditionalSerializers(s);
             }
 
-//          @Override
+            @Override
             public void addKeySerializers(Serializers s) {
                 mapper._serializerFactory = mapper._serializerFactory.withAdditionalKeySerializers(s);
             }
             
-//          @Override
+            @Override
             public void addBeanSerializerModifier(BeanSerializerModifier modifier) {
                 mapper._serializerFactory = mapper._serializerFactory.withSerializerModifier(modifier);
             }
 
             // // // Methods for registering handlers: other
             
-//          @Override
+            @Override
             public void addAbstractTypeResolver(AbstractTypeResolver resolver) {
                 DeserializerFactory df = mapper._deserializationContext._factory.withAbstractTypeResolver(resolver);
                 mapper._deserializationContext = mapper._deserializationContext.with(df);
             }
 
-//          @Override
+            @Override
             public void addTypeModifier(TypeModifier modifier) {
                 TypeFactory f = mapper._typeFactory;
                 f = f.withModifier(modifier);
                 mapper.setTypeFactory(f);
             }
 
-//          @Override
+            @Override
             public void addValueInstantiators(ValueInstantiators instantiators) {
                 DeserializerFactory df = mapper._deserializationContext._factory.withValueInstantiators(instantiators);
                 mapper._deserializationContext = mapper._deserializationContext.with(df);
             }
 
-//          @Override
+            @Override
             public void setClassIntrospector(ClassIntrospector ci) {
                 mapper._deserializationConfig = mapper._deserializationConfig.with(ci);
                 mapper._serializationConfig = mapper._serializationConfig.with(ci);
             }
 
-//          @Override
+            @Override
             public void insertAnnotationIntrospector(AnnotationIntrospector ai) {
                 mapper._deserializationConfig = mapper._deserializationConfig.withInsertedAnnotationIntrospector(ai);
                 mapper._serializationConfig = mapper._serializationConfig.withInsertedAnnotationIntrospector(ai);
             }
             
-//          @Override
+            @Override
             public void appendAnnotationIntrospector(AnnotationIntrospector ai) {
                 mapper._deserializationConfig = mapper._deserializationConfig.withAppendedAnnotationIntrospector(ai);
                 mapper._serializationConfig = mapper._serializationConfig.withAppendedAnnotationIntrospector(ai);
             }
 
-//          @Override
+            @Override
             public void registerSubtypes(Class<?>... subtypes) {
                 mapper.registerSubtypes(subtypes);
             }
 
-//          @Override
+            @Override
             public void registerSubtypes(NamedType... subtypes) {
                 mapper.registerSubtypes(subtypes);
             }
             
-//          @Override
+            @Override
             public void setMixInAnnotations(Class<?> target, Class<?> mixinSource) {
                 mapper.addMixInAnnotations(target, mixinSource);
             }
             
-//          @Override
+            @Override
             public void addDeserializationProblemHandler(DeserializationProblemHandler handler) {
                 mapper.addHandler(handler);
             }
@@ -672,6 +671,93 @@ public class ObjectMapper
         return this;
     }
 
+    /**
+     * Convenience method for registering specified modules in order;
+     * functionally equivalent to:
+     *<pre>
+     *   for (Module module : modules) {
+     *      registerModule(module);
+     *   }
+     *</pre>
+     * 
+     * @since 2.2
+     */
+    public ObjectMapper registerModules(Module... modules)
+    {
+        for (Module module : modules) {
+            registerModule(module);
+        }
+        return this;
+    }
+
+    /**
+     * Convenience method for registering specified modules in order;
+     * functionally equivalent to:
+     *<pre>
+     *   for (Module module : modules) {
+     *      registerModule(module);
+     *   }
+     *</pre>
+     * 
+     * @since 2.2
+     */
+    public ObjectMapper registerModules(Iterable<Module> modules)
+    {
+        for (Module module : modules) {
+            registerModule(module);
+        }
+        return this;
+    }
+    
+    /**
+     * Method for locating available methods, using JDK {@link ServiceLoader}
+     * facility, along with module-provided SPI.
+     *<p>
+     * Note that method does not do any caching, so calls should be considered
+     * potentially expensive.
+     * 
+     * @since 2.2
+     */
+    public static List<Module> findModules() {
+        return findModules(null);
+    }
+
+    /**
+     * Method for locating available methods, using JDK {@link ServiceLoader}
+     * facility, along with module-provided SPI.
+     *<p>
+     * Note that method does not do any caching, so calls should be considered
+     * potentially expensive.
+     * 
+     * @since 2.2
+     */
+    public static List<Module> findModules(ClassLoader classLoader)
+    {
+        ArrayList<Module> modules = new ArrayList<Module>();
+        ServiceLoader<Module> loader = (classLoader == null) ?
+                ServiceLoader.load(Module.class) : ServiceLoader.load(Module.class, classLoader);
+        for (Module module : loader) {
+            modules.add(module);
+        }
+        return modules;
+    }
+
+    /**
+     * Convenience method that is functionally equivalent to:
+     *<code>
+     *   mapper.registerModules(mapper.findModules());
+     *<code>
+     *<p>
+     * As with {@link #findModules()}, no caching is done for modules, so care
+     * needs to be taken to either create and share a single mapper instance;
+     * or to cache introspected set of modules.
+     *
+     * @since 2.2
+     */
+    public ObjectMapper findAndRegisterModules() {
+        return registerModules(findModules());
+    }
+    
     /*
     /**********************************************************
     /* Configuration: main config object access
@@ -1132,7 +1218,7 @@ public class ObjectMapper
      * 
      * @param v Base64 variant to use
      * 
-     * @returns This mapper, for convenience to allow chaining
+     * @return This mapper, for convenience to allow chaining
      * 
      * @since 2.1
      */
@@ -2214,8 +2300,22 @@ public class ObjectMapper
      * type.
      */
     public ObjectWriter writerWithType(Class<?> rootType) {
-        JavaType t = (rootType == null) ? null : _typeFactory.constructType(rootType);
-        return new ObjectWriter(this, getSerializationConfig(), t, /*PrettyPrinter*/null);
+        return new ObjectWriter(this, getSerializationConfig(),
+                // 15-Mar-2013, tatu: Important! Indicate that static typing is needed:
+                ((rootType == null) ? null :_typeFactory.constructType(rootType)),
+                /*PrettyPrinter*/null);
+    }
+
+    /**
+     * Factory method for constructing {@link ObjectWriter} that will
+     * serialize objects using specified root type, instead of actual
+     * runtime type of value. Type must be a super-type of runtime type.
+     */
+    public ObjectWriter writerWithType(TypeReference<?> rootType) {
+        return new ObjectWriter(this, getSerializationConfig(),
+                // 15-Mar-2013, tatu: Important! Indicate that static typing is needed:
+                ((rootType == null) ? null : _typeFactory.constructType(rootType)),
+                /*PrettyPrinter*/null);
     }
 
     /**
@@ -2225,16 +2325,6 @@ public class ObjectMapper
      */
     public ObjectWriter writerWithType(JavaType rootType) {
         return new ObjectWriter(this, getSerializationConfig(), rootType, /*PrettyPrinter*/null);
-    }
-
-    /**
-     * Factory method for constructing {@link ObjectWriter} that will
-     * serialize objects using specified root type, instead of actual
-     * runtime type of value. Type must be a super-type of runtime type.
-     */
-    public ObjectWriter writerWithType(TypeReference<?> rootType) {
-        JavaType t = (rootType == null) ? null : _typeFactory.constructType(rootType);
-        return new ObjectWriter(this, getSerializationConfig(), t, /*PrettyPrinter*/null);
     }
     
     /**
@@ -2275,6 +2365,7 @@ public class ObjectMapper
      * @param schema Schema to pass to generator
      */
     public ObjectWriter writer(FormatSchema schema) {
+        _verifySchemaType(schema);
         return new ObjectWriter(this, getSerializationConfig(), schema);
     }
 
@@ -2390,6 +2481,7 @@ public class ObjectMapper
      * @param schema Schema to pass to parser
      */
     public ObjectReader reader(FormatSchema schema) {
+        _verifySchemaType(schema);
         return new ObjectReader(this, getDeserializationConfig(), null, null,
                 schema, _injectableValues);
     }
@@ -2447,11 +2539,6 @@ public class ObjectMapper
     {
         // sanity check for null first:
         if (fromValue == null) return null;
-        // also, as per [Issue-11], consider case for simple cast
-        // ... one caveat; while everything is Object.class, let's not take shortcut
-        if (toValueType != Object.class && toValueType.isAssignableFrom(fromValue.getClass())) {
-            return (T) fromValue;
-        }
         return (T) _convert(fromValue, _typeFactory.constructType(toValueType));
     } 
 
@@ -2468,17 +2555,6 @@ public class ObjectMapper
     {
         // sanity check for null first:
         if (fromValue == null) return null;
-        // also, as per [Issue-11], consider case for simple cast
-        /* But with caveats: one is that while everything is Object.class, we don't
-         * want to "optimize" that out; and the other is that we also do not want
-         * to lose conversions of generic types.
-         */
-        Class<?> targetType = toValueType.getRawClass();
-        if (targetType != Object.class
-                && !toValueType.hasGenericTypes()
-                && targetType.isAssignableFrom(fromValue.getClass())) {
-            return (T) fromValue;
-        }
         return (T) _convert(fromValue, toValueType);
     } 
 
@@ -2493,6 +2569,18 @@ public class ObjectMapper
     protected Object _convert(Object fromValue, JavaType toValueType)
         throws IllegalArgumentException
     {        
+        // also, as per [Issue-11], consider case for simple cast
+        /* But with caveats: one is that while everything is Object.class, we don't
+         * want to "optimize" that out; and the other is that we also do not want
+         * to lose conversions of generic types.
+         */
+        Class<?> targetType = toValueType.getRawClass();
+        if (targetType != Object.class
+                && !toValueType.hasGenericTypes()
+                && targetType.isAssignableFrom(fromValue.getClass())) {
+            return fromValue;
+        }
+        
         /* Then use TokenBuffer, which is a JsonGenerator:
          * (see [JACKSON-175])
          */
@@ -2542,7 +2630,8 @@ public class ObjectMapper
      * @return Constructed JSON schema.
      */
     @SuppressWarnings("deprecation")
-    public JsonSchema generateJsonSchema(Class<?> t) throws JsonMappingException {
+    public com.fasterxml.jackson.databind.jsonschema.JsonSchema generateJsonSchema(Class<?> t)
+            throws JsonMappingException {
         return _serializerProvider(getSerializationConfig()).generateJsonSchema(t);
     }
 
@@ -2736,7 +2825,7 @@ public class ObjectMapper
      * for deserializing a single root value.
      * Can be overridden if a custom context is needed.
      */
-    protected final DefaultDeserializationContext createDeserializationContext(JsonParser jp,
+    protected DefaultDeserializationContext createDeserializationContext(JsonParser jp,
             DeserializationConfig cfg)
     {
         return _deserializationContext.createInstance(cfg,
@@ -2904,5 +2993,18 @@ public class ObjectMapper
         }
         _rootDeserializers.put(valueType, deser);
         return deser;
+    }
+
+    /**
+     * @since 2.2
+     */
+    protected void _verifySchemaType(FormatSchema schema)
+    {
+        if (schema != null) {
+            if (!_jsonFactory.canUseSchema(schema)) {
+                    throw new IllegalArgumentException("Can not use FormatSchema of type "+schema.getClass().getName()
+                            +" for format "+_jsonFactory.getFormatName());
+            }
+        }
     }
 }

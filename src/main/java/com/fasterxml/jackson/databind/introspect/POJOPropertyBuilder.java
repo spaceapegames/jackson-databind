@@ -1,6 +1,7 @@
 package com.fasterxml.jackson.databind.introspect;
 
 import com.fasterxml.jackson.databind.AnnotationIntrospector;
+import com.fasterxml.jackson.databind.PropertyName;
 
 /**
  * Helper class used for aggregating information about a single
@@ -79,7 +80,7 @@ public class POJOPropertyBuilder
     /**********************************************************
      */
 
-//    @Override
+    @Override
     public int compareTo(POJOPropertyBuilder other)
     {
         // first, if one has ctor params, that should come first:
@@ -95,10 +96,10 @@ public class POJOPropertyBuilder
          */
         return getName().compareTo(other.getName());
     }
-    
+
     /*
     /**********************************************************
-    /* BeanPropertyDefinition implementation
+    /* BeanPropertyDefinition implementation, name/type
     /**********************************************************
      */
 
@@ -109,6 +110,26 @@ public class POJOPropertyBuilder
     public String getInternalName() { return _internalName; }
 
     @Override
+    public PropertyName getWrapperName() {
+        /* 13-Mar-2013, tatu: Accessing via primary member SHOULD work,
+         *   due to annotation merging. However, I have seen some problems
+         *   with this access (for other annotations) so will leave full
+         *   traversal code in place just in case.
+         */
+        AnnotatedMember member = getPrimaryMember();
+        return (member == null || _annotationIntrospector == null) ? null
+                : _annotationIntrospector.findWrapperName(member);
+    	/*
+        return fromMemberAnnotations(new WithMember<PropertyName>() {
+            @Override
+            public PropertyName withMember(AnnotatedMember member) {
+                return _annotationIntrospector.findWrapperName(member);
+            }
+        });
+        */
+    }
+
+    @Override
     public boolean isExplicitlyIncluded() {
         return _anyExplicitNames(_fields)
                 || _anyExplicitNames(_getters)
@@ -117,6 +138,11 @@ public class POJOPropertyBuilder
                 ;
     }
 
+    /*
+    /**********************************************************
+    /* BeanPropertyDefinition implementation, accessor access
+    /**********************************************************
+     */
     
     @Override
     public boolean hasGetter() { return _getters != null; }
@@ -287,10 +313,11 @@ public class POJOPropertyBuilder
     /* Implementations of refinement accessors
     /**********************************************************
      */
-    
+
     @Override
     public Class<?>[] findViews() {
         return fromMemberAnnotations(new WithMember<Class<?>[]>() {
+            @Override
             public Class<?>[] withMember(AnnotatedMember member) {
                 return _annotationIntrospector.findViews(member);
             }
@@ -300,6 +327,7 @@ public class POJOPropertyBuilder
     @Override
     public AnnotationIntrospector.ReferenceProperty findReferenceType() {
         return fromMemberAnnotations(new WithMember<AnnotationIntrospector.ReferenceProperty>() {
+            @Override
             public AnnotationIntrospector.ReferenceProperty withMember(AnnotatedMember member) {
                 return _annotationIntrospector.findReferenceType(member);
             }
@@ -309,6 +337,7 @@ public class POJOPropertyBuilder
     @Override
     public boolean isTypeId() {
         Boolean b = fromMemberAnnotations(new WithMember<Boolean>() {
+            @Override
             public Boolean withMember(AnnotatedMember member) {
                 return _annotationIntrospector.isTypeId(member);
             }
@@ -319,16 +348,18 @@ public class POJOPropertyBuilder
     @Override
     public boolean isRequired() {
         Boolean b = fromMemberAnnotations(new WithMember<Boolean>() {
+            @Override
             public Boolean withMember(AnnotatedMember member) {
                 return _annotationIntrospector.hasRequiredMarker(member);
             }
         });
         return (b != null) && b.booleanValue();
     }
-    
+
     @Override
     public ObjectIdInfo findObjectIdInfo() {
         return fromMemberAnnotations(new WithMember<ObjectIdInfo>() {
+            @Override
             public ObjectIdInfo withMember(AnnotatedMember member) {
                 ObjectIdInfo info = _annotationIntrospector.findObjectIdInfo(member);
                 if (info != null) {
@@ -402,7 +433,16 @@ public class POJOPropertyBuilder
         _ctorParameters = _removeIgnored(_ctorParameters);
     }
 
-    public void removeNonVisible()
+    /**
+     * @deprecated Since 2.2, use variant that takes boolean argument
+     */
+    @Deprecated
+    public void removeNonVisible() {
+        removeNonVisible(false);
+    }
+    
+    
+    public void removeNonVisible(boolean force)
     {
         /* 21-Aug-2011, tatu: This is tricky part -- if and when allow
          *   non-visible property elements to be "pulled in" by visible
@@ -410,10 +450,14 @@ public class POJOPropertyBuilder
          *   For now, we will only do this to pull in setter or field used
          *   as setter, if an explicit getter is found.
          */
+        /*
+         * 28-Mar-2013, tatu: Also, as per [Issue#195], may force removal
+         *   if inferred properties are NOT supported.
+         */
         _getters = _removeNonVisible(_getters);
         _ctorParameters = _removeNonVisible(_ctorParameters);
 
-        if (_getters == null) {
+        if (force || (_getters == null)) {
             _fields = _removeNonVisible(_fields);
             _setters = _removeNonVisible(_setters);
         }

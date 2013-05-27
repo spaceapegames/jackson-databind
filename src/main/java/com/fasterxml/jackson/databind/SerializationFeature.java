@@ -57,7 +57,7 @@ public enum SerializationFeature implements ConfigFeature
     
     /*
     /******************************************************
-    /*  Error handling features
+    /* Error handling features
     /******************************************************
      */
     
@@ -266,6 +266,23 @@ public enum SerializationFeature implements ConfigFeature
     WRITE_BIGDECIMAL_AS_PLAIN(false),
     
     /**
+     * Feature that controls whether numeric timestamp values are
+     * to be written using nanosecond timestamps (enabled) or not (disabled);
+     * <b>if and only if</b> datatype supports such resolution.
+     * Only newer datatypes (such as Java8 Date/Time) support such resolution --
+     * older types (pre-Java8 <b>java.util.Date</b> etc) and Joda do not --
+     * and this setting <b>has no effect</b> on such types.
+     *<p>
+     * If disabled, standard millisecond timestamps are assumed.
+     * This is the counterpart to {@link SerializationFeature#WRITE_DATE_TIMESTAMPS_AS_NANOSECONDS}.
+     *<p>
+     * Feature is enabled by default, to support most accurate time values possible.
+     * 
+     * @since 2.2
+     */
+    WRITE_DATE_TIMESTAMPS_AS_NANOSECONDS(true),    
+    
+    /**
      * Feature that determines whether {@link java.util.Map} entries are first
      * sorted by key before serialization or not: if enabled, additional sorting
      * step is performed if necessary (not necessary for {@link java.util.SortedMap}s),
@@ -304,9 +321,9 @@ public enum SerializationFeature implements ConfigFeature
         _defaultState = defaultState;
     }
 
-//    @Override
+    @Override
     public boolean enabledByDefault() { return _defaultState; }
 
-//    @Override
+    @Override
     public int getMask() { return (1 << ordinal()); }
 }

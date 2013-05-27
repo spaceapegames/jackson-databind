@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.std.CollectionSerializer;
 import com.fasterxml.jackson.databind.ser.std.StdDelegatingSerializer;
-import com.fasterxml.jackson.databind.util.Converter;
+import com.fasterxml.jackson.databind.util.StdConverter;
 
 /**
  * Test for verifying [JACKSON-238]
@@ -92,8 +92,8 @@ public class TestCustomSerializers
         ObjectMapper mapper = new ObjectMapper();
         SimpleModule module = new SimpleModule("test", Version.unknownVersion());
         module.addSerializer(new StdDelegatingSerializer(Immutable.class,
-                new Converter<Immutable, Map<String,Integer>>() {
-                    //@Override
+                new StdConverter<Immutable, Map<String,Integer>>() {
+                    @Override
                     public Map<String, Integer> convert(Immutable value)
                     {
                         HashMap<String,Integer> map = new LinkedHashMap<String,Integer>();

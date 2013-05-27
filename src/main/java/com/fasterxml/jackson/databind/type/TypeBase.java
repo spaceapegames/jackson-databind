@@ -21,22 +21,32 @@ public abstract class TypeBase
     volatile transient String _canonicalName;
 
     /**
-     * Main constructor to use by extending classes.
+     * @deprecated Since 2.2 use method that takes 'asStatic' argument
      */
+    @Deprecated
     protected TypeBase(Class<?> raw, int hash,
             Object valueHandler, Object typeHandler)
     {
-        super(raw, hash, valueHandler, typeHandler);
+        this(raw, hash, valueHandler, typeHandler, false);
+    }
+
+    /**
+     * Main constructor to use by extending classes.
+     */
+    protected TypeBase(Class<?> raw, int hash,
+            Object valueHandler, Object typeHandler, boolean asStatic)
+    {
+        super(raw, hash, valueHandler, typeHandler, asStatic);
     }
 
     @Override
     public String toCanonical()
     {
-    	String str = _canonicalName;
-    	if (str == null) {
+        String str = _canonicalName;
+        if (str == null) {
             str = buildCanonicalName();
-    	}
-    	return str;
+        }
+        return str;
     }
     
     protected abstract String buildCanonicalName();
@@ -61,7 +71,7 @@ public abstract class TypeBase
     /**********************************************************
      */
 
-//  @Override
+    @Override
     public void serializeWithType(JsonGenerator jgen, SerializerProvider provider,
             TypeSerializer typeSer)
         throws IOException, JsonProcessingException
@@ -71,7 +81,7 @@ public abstract class TypeBase
         typeSer.writeTypeSuffixForScalar(this, jgen);
     }
 
-//  @Override
+    @Override
     public void serialize(JsonGenerator jgen, SerializerProvider provider)
             throws IOException, JsonProcessingException
     {

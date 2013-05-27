@@ -128,7 +128,7 @@ public class CollectionDeserializer
      * when it is known for which property deserializer is needed
      * for.
      */
-//    @Override
+    @Override
     public CollectionDeserializer createContextual(DeserializationContext ctxt,
             BeanProperty property) throws JsonMappingException
     {
@@ -145,6 +145,8 @@ public class CollectionDeserializer
         }
         // also, often value deserializer is resolved here:
         JsonDeserializer<?> valueDeser = _valueDeserializer;
+        // #125: May have a content converter
+        valueDeser = findConvertingContentDeserializer(ctxt, property, valueDeser);
         if (valueDeser == null) {
             valueDeser = ctxt.findContextualValueDeserializer(
                     _collectionType.getContentType(), property);
@@ -248,7 +250,7 @@ public class CollectionDeserializer
      * throw an exception, or try to handle value as if member of implicit
      * array, depending on configuration.
      */
-    private final Collection<Object> handleNonArray(JsonParser jp, DeserializationContext ctxt,
+    protected final Collection<Object> handleNonArray(JsonParser jp, DeserializationContext ctxt,
             Collection<Object> result)
         throws IOException, JsonProcessingException
     {

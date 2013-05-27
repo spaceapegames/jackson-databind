@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.deser.impl.TypeWrappedDeserializer;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.fasterxml.jackson.databind.introspect.Annotated;
-import com.fasterxml.jackson.databind.introspect.ObjectIdInfo;
 import com.fasterxml.jackson.databind.jsontype.TypeDeserializer;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.type.TypeFactory;
@@ -38,6 +37,7 @@ import com.fasterxml.jackson.databind.util.*;
  * for reconfiguring blueprints and creating instances.
  */
 public abstract class DeserializationContext
+    extends DatabindContext
     implements java.io.Serializable
 {
     private static final long serialVersionUID = -7727373309391091315L;
@@ -171,6 +171,28 @@ public abstract class DeserializationContext
         _parser = jp;
         _injectableValues = injectableValues;
     }
+
+    /*
+    /**********************************************************
+    /* DatabindContext implementation
+    /**********************************************************
+     */
+
+    @Override
+    public DeserializationConfig getConfig() { return _config; }
+
+    @Override
+    public final Class<?> getActiveView() { return _view; }
+
+    @Override
+    public final AnnotationIntrospector getAnnotationIntrospector() {
+        return _config.getAnnotationIntrospector();
+    }
+
+    @Override
+    public final TypeFactory getTypeFactory() {
+        return _config.getTypeFactory();
+    }
     
     /*
     /**********************************************************
@@ -184,13 +206,7 @@ public abstract class DeserializationContext
     public DeserializerFactory getFactory() {
         return _factory;
     }
-
-    /**
-     * Method for accessing configuration setting object for
-     * currently active deserialization.
-     */
-    public DeserializationConfig getConfig() { return _config; }
-
+    
     /**
      * Convenience method for checking whether specified on/off
      * feature is enabled
@@ -200,14 +216,6 @@ public abstract class DeserializationContext
          *   let's use a local copy of feature settings:
          */
         return (_featureFlags & feat.getMask()) != 0;
-    }
-
-    public final boolean isEnabled(MapperFeature feat) {
-        return _config.isEnabled(feat);
-    }
-    
-    public final AnnotationIntrospector getAnnotationIntrospector() {
-        return _config.getAnnotationIntrospector();
     }
 
     /**
@@ -230,24 +238,6 @@ public abstract class DeserializationContext
     }
 
     /**
-     * Accessor for locating currently active view, if any;
-     * returns null if no view has been set.
-     */
-    public final Class<?> getActiveView() {
-        return _view;
-    }
-
-    /**
-     * Convenience method, functionally equivalent to:
-     *<pre>
-     *  getConfig().canOverrideAccessModifiers();
-     * </pre>
-     */
-    public final boolean canOverrideAccessModifiers() {
-        return _config.canOverrideAccessModifiers();
-    }
-
-    /**
      * Convenience method for accessing the default Base64 encoding
      * used for decoding base64 encoded binary content.
      * Same as calling:
@@ -267,16 +257,6 @@ public abstract class DeserializationContext
      */
     public final JsonNodeFactory getNodeFactory() {
         return _config.getNodeFactory();
-    }
-
-    /**
-     * Convenience method, functionally equivalent to:
-     *<pre>
-     *  getConfig().getTypeFactory();
-     * </pre>
-     */
-    public final TypeFactory getTypeFactory() {
-        return _config.getTypeFactory();
     }
 
     /**
@@ -428,10 +408,6 @@ public abstract class DeserializationContext
             Object deserDef)
         throws JsonMappingException;
 
-    public abstract ObjectIdGenerator<?> objectIdGeneratorInstance(Annotated annotated,
-            ObjectIdInfo objectIdInfo)
-        throws JsonMappingException;
-    
     /*
     /**********************************************************
     /* Public API, helper object recycling

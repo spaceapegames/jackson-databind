@@ -12,17 +12,17 @@ import java.util.*;
  */
 public final class ArrayBuilders
 {
-    BooleanBuilder _booleanBuilder = null;
+    private BooleanBuilder _booleanBuilder = null;
 
     // note: no need for char[] builder, assume they are Strings
 
-    ByteBuilder _byteBuilder = null;
-    ShortBuilder _shortBuilder = null;
-    IntBuilder _intBuilder = null;
-    LongBuilder _longBuilder = null;
+    private ByteBuilder _byteBuilder = null;
+    private ShortBuilder _shortBuilder = null;
+    private IntBuilder _intBuilder = null;
+    private LongBuilder _longBuilder = null;
     
-    FloatBuilder _floatBuilder = null;
-    DoubleBuilder _doubleBuilder = null;
+    private FloatBuilder _floatBuilder = null;
+    private DoubleBuilder _doubleBuilder = null;
 
     public ArrayBuilders() { }
 
@@ -142,6 +142,44 @@ public final class ArrayBuilders
     /**********************************************************
      */
 
+    /**
+     * Helper method used for constructing simple value comparator used for
+     * comparing arrays for content equality.
+     *<p>
+     * Note: current implementation is not optimized for speed; if performance
+     * ever becomes an issue, it is possible to construct much more efficient
+     * typed instances (one for Object[] and sub-types; one per primitive type).
+     * 
+     * @since 2.2 Moved from earlier <code>Comparators</code> class
+     */
+    public static Object getArrayComparator(final Object defaultValue)
+    {
+        final int length = Array.getLength(defaultValue);
+        final Class<?> defaultValueType = defaultValue.getClass();
+        return new Object() {
+            @Override
+            public boolean equals(Object other) {
+                if (other == this) return true;
+                if (other == null || other.getClass() != defaultValueType) {
+                    return false;
+                }
+                if (Array.getLength(other) != length) return false;
+                // so far so good: compare actual equality; but only shallow one
+                for (int i = 0; i < length; ++i) {
+                    Object value1 = Array.get(defaultValue, i);
+                    Object value2 = Array.get(other, i);
+                    if (value1 == value2) continue;
+                    if (value1 != null) {
+                        if (!value1.equals(value2)) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+        };
+    }
+    
     public static <T> HashSet<T> arrayToSet(T[] elements)
     {
         HashSet<T> result = new HashSet<T>();
@@ -238,8 +276,13 @@ public final class ArrayBuilders
                 }
                 // otherwise move things around
                 T[] result = (T[]) Array.newInstance(array.getClass().getComponentType(), len);
-                System.arraycopy(array, 0, result, 0, len);
-                result[ix] = element;
+                System.arraycopy(array, 0, result, 1, ix);
+                result[0] = element;
+                ++ix;
+                int left = len - ix;
+                if (left > 0) {
+                	System.arraycopy(array, ix, result, ix, left);
+                }
                 return result;
             }
         }
@@ -288,12 +331,12 @@ public final class ArrayBuilders
             _index = 0;
         }
         
-//      @Override
+       @Override
         public boolean hasNext() {
             return _index < _array.length;
         }
 
-//      @Override
+        @Override
         public T next()
         {
             if (_index >= _array.length) {
@@ -302,12 +345,12 @@ public final class ArrayBuilders
             return _array[_index++];
         }
 
-//      @Override
+        @Override
         public void remove() {
             throw new UnsupportedOperationException();
         }
 
-//      @Override
+        @Override
         public Iterator<T> iterator() {
             return this;
         }

@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.DeserializationConfig;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JacksonStdImpl;
 import com.fasterxml.jackson.databind.deser.CreatorProperty;
 import com.fasterxml.jackson.databind.deser.ValueInstantiator;
@@ -21,20 +22,35 @@ import com.fasterxml.jackson.databind.util.TokenBuffer;
 @SuppressWarnings("serial")
 public class JacksonDeserializers
 {
+    /**
+     * @deprecated Since 2.2 -- use {@link #find} instead.
+     */
+    @Deprecated
     public static StdDeserializer<?>[] all()
     {
         // note: JsonLocation supported via ValueInstantiator
         return  new StdDeserializer[] {
-            new JavaTypeDeserializer(),
-            new TokenBufferDeserializer(),
+            JavaTypeDeserializer.instance,
+            TokenBufferDeserializer.instance
         };
     }
 
+    public static JsonDeserializer<?> find(Class<?> rawType)
+    {
+        if (rawType == TokenBuffer.class) {
+            return TokenBufferDeserializer.instance;
+        }
+        if (JavaType.class.isAssignableFrom(rawType)) {
+            return JavaTypeDeserializer.instance;
+        }
+        return null;
+    }
+    
     public static ValueInstantiator findValueInstantiator(DeserializationConfig config,
             BeanDescription beanDesc)
     {
         if (beanDesc.getBeanClass() == JsonLocation.class) {
-            return new JsonLocationInstantiator();
+            return JsonLocationInstantiator.instance;
         }
         return null;
     }
@@ -51,6 +67,8 @@ public class JacksonDeserializers
     public static class JavaTypeDeserializer
         extends StdScalarDeserializer<JavaType>
     {
+        public final static JavaTypeDeserializer instance = new JavaTypeDeserializer();
+        
         public JavaTypeDeserializer() { super(JavaType.class); }
         
         @Override
@@ -81,6 +99,8 @@ public class JacksonDeserializers
      */
     public static class JsonLocationInstantiator extends ValueInstantiator
     {
+        public final static JsonLocationInstantiator instance = new JsonLocationInstantiator();
+        
         @Override
         public String getValueTypeDesc() {
             return JsonLocation.class.getName();
@@ -94,14 +114,19 @@ public class JacksonDeserializers
             JavaType intType = config.constructType(Integer.TYPE);
             JavaType longType = config.constructType(Long.TYPE);
             return  new CreatorProperty[] {
-                    new CreatorProperty("sourceRef", config.constructType(Object.class), null, null, null, 0, null, true),
-                    new CreatorProperty("byteOffset", longType, null, null, null, 1, null, true),
-                    new CreatorProperty("charOffset", longType, null, null, null, 2, null, true),
-                    new CreatorProperty("lineNr", intType, null, null, null, 3, null, true),
-                    new CreatorProperty("columnNr", intType, null, null, null, 4, null, true)
+                    creatorProp("sourceRef", config.constructType(Object.class), 0),
+                    creatorProp("byteOffset", longType, 1),
+                    creatorProp("charOffset", longType, 2),
+                    creatorProp("lineNr", intType, 3),
+                    creatorProp("columnNr", intType, 4)
             };
         }
 
+        private static CreatorProperty creatorProp(String name, JavaType type, int index) {
+            return new CreatorProperty(name, type, null,
+                    null, null, null, index, null, true);
+        }
+        
         @Override
         public Object createFromObjectWith(DeserializationContext ctxt, Object[] args) {
             return new JsonLocation(args[0], _long(args[1]), _long(args[2]),
@@ -127,6 +152,8 @@ public class JacksonDeserializers
     public static class TokenBufferDeserializer
         extends StdScalarDeserializer<TokenBuffer>
     {
+        public final static TokenBufferDeserializer instance = new TokenBufferDeserializer();
+        
         public TokenBufferDeserializer() { super(TokenBuffer.class); }
 
         @Override

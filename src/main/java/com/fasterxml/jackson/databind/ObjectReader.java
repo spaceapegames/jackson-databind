@@ -388,7 +388,7 @@ public class ObjectReader
     public ObjectReader withRootName(String rootName) {
         return _with(_config.withRootName(rootName));
     }
-    
+
     /**
      * Method for constructing a new instance with configuration that
      * passes specified {@link FormatSchema} to {@link JsonParser} that
@@ -402,6 +402,7 @@ public class ObjectReader
         if (_schema == schema) {
             return this;
         }
+        _verifySchemaType(schema);
         return new ObjectReader(this, _config, _valueType, _rootDeserializer, _valueToUpdate,
                 schema, _injectableValues, _dataFormatReaders);
     }
@@ -1303,7 +1304,7 @@ public class ObjectReader
     /**
      * Method called to locate deserializer for the passed root-level value.
      */
-    protected final JsonDeserializer<Object> _findRootDeserializer(DeserializationContext ctxt,
+    protected JsonDeserializer<Object> _findRootDeserializer(DeserializationContext ctxt,
             JavaType valueType)
         throws JsonMappingException
     {
@@ -1335,7 +1336,7 @@ public class ObjectReader
      * by configuration. Method also is NOT to throw an exception if
      * access fails.
      */
-    protected final JsonDeserializer<Object> _prefetchRootDeserializer(
+    protected JsonDeserializer<Object> _prefetchRootDeserializer(
             DeserializationConfig config, JavaType valueType)
     {
         if (valueType == null || !_config.isEnabled(DeserializationFeature.EAGER_DESERIALIZER_FETCH)) {
@@ -1476,11 +1477,24 @@ public class ObjectReader
      */
 
     /**
+     * @since 2.2
+     */
+    protected void _verifySchemaType(FormatSchema schema)
+    {
+        if (schema != null) {
+            if (!_jsonFactory.canUseSchema(schema)) {
+                    throw new IllegalArgumentException("Can not use FormatSchema of type "+schema.getClass().getName()
+                            +" for format "+_jsonFactory.getFormatName());
+            }
+        }
+    }
+
+    /**
      * Internal helper method called to create an instance of {@link DeserializationContext}
      * for deserializing a single root value.
      * Can be overridden if a custom context is needed.
      */
-    protected final DefaultDeserializationContext createDeserializationContext(JsonParser jp,
+    protected DefaultDeserializationContext createDeserializationContext(JsonParser jp,
             DeserializationConfig cfg) {
         // 04-Jan-2010, tatu: we do actually need the provider too... (for polymorphic deser)
         return _context.createInstance(cfg, jp, _injectableValues);

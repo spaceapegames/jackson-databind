@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.jsontype.TypeIdResolver;
 import com.fasterxml.jackson.databind.jsontype.TypeResolverBuilder;
 import com.fasterxml.jackson.databind.jsontype.impl.StdTypeResolverBuilder;
 import com.fasterxml.jackson.databind.ser.std.RawSerializer;
+import com.fasterxml.jackson.databind.util.Converter;
 import com.fasterxml.jackson.databind.util.NameTransformer;
 
 /**
@@ -398,6 +399,30 @@ public class JacksonAnnotationIntrospector
     }
 
     @Override
+    public Object findSerializationConverter(Annotated a) {
+        JsonSerialize ann = a.getAnnotation(JsonSerialize.class);
+        if (ann != null) {
+            Class<?> def = ann.converter();
+            if (def != Converter.None.class) {
+                return def;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Object findSerializationContentConverter(AnnotatedMember a) {
+        JsonSerialize ann = a.getAnnotation(JsonSerialize.class);
+        if (ann != null) {
+            Class<?> def = ann.contentConverter();
+            if (def != Converter.None.class) {
+                return def;
+            }
+        }
+        return null;
+    }
+    
+    @Override
     public Class<?>[] findViews(Annotated a)
     {
         JsonView ann = a.getAnnotation(JsonView.class);
@@ -613,12 +638,34 @@ public class JacksonAnnotationIntrospector
                 return cls;
             }
         }
-        /* 30-Jun-2011, tatu: Here we used to have support for @JsonContentClass;
-         *    removed in 1.9
-         */
         return null;
     }
 
+    @Override
+    public Object findDeserializationConverter(Annotated a)
+    {
+        JsonDeserialize ann = a.getAnnotation(JsonDeserialize.class);
+        if (ann != null) {
+            Class<?> def = ann.converter();
+            if (def != Converter.None.class) {
+                return def;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Object findDeserializationContentConverter(AnnotatedMember a)
+    {
+        JsonDeserialize ann = a.getAnnotation(JsonDeserialize.class);
+        if (ann != null) {
+            Class<?> def = ann.contentConverter();
+            if (def != Converter.None.class) {
+                return def;
+            }
+        }
+        return null;    }
+    
     /*
     /**********************************************************
     /* Deserialization: Class annotations
@@ -636,9 +683,9 @@ public class JacksonAnnotationIntrospector
     @Override
     public Class<?> findPOJOBuilder(AnnotatedClass ac)
     {
-    	JsonDeserialize ann = ac.getAnnotation(JsonDeserialize.class);
-    	return ((ann == null) || (ann.builder() == NoClass.class)) ?
-    			null : ann.builder();
+        JsonDeserialize ann = ac.getAnnotation(JsonDeserialize.class);
+        return ((ann == null) || (ann.builder() == NoClass.class)) ?
+                null : ann.builder();
     }
 
     @Override

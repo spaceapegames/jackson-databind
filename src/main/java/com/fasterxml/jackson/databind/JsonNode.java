@@ -5,8 +5,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.TreeNode;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.fasterxml.jackson.databind.util.EmptyIterator;
@@ -59,7 +57,124 @@ public abstract class JsonNode
      *    children); or, for immutable leaf nodes, node itself.
      */
     public abstract <T extends JsonNode> T deepCopy();
+
+    /*
+    /**********************************************************
+    /* TreeNode implementation
+    /**********************************************************
+     */
+
+//    public abstract JsonToken asToken();
+
+//    public abstract JsonParser.NumberType numberType();
+
+//    public abstract JsonParser traverse();
     
+    @Override
+    public int size() { return 0; }
+
+    @Override
+    public final boolean isValueNode()
+    {
+        switch (getNodeType()) {
+            case ARRAY: case OBJECT: case MISSING:
+                return false;
+            default:
+                return true;
+        }
+    }
+
+    @Override
+    public final boolean isContainerNode() {
+        final JsonNodeType type = getNodeType();
+        return type == JsonNodeType.OBJECT || type == JsonNodeType.ARRAY;
+    }
+
+    @Override
+    public final boolean isMissingNode() {
+        return getNodeType() == JsonNodeType.MISSING;
+    }
+
+    @Override
+    public final boolean isArray() {
+        return getNodeType() == JsonNodeType.ARRAY;
+    }
+
+    @Override
+    public final boolean isObject() {
+        return getNodeType() == JsonNodeType.OBJECT;
+    }
+
+    /**
+     * Method for accessing value of the specified element of
+     * an array node. For other nodes, null is always returned.
+     *<p>
+     * For array nodes, index specifies
+     * exact location within array and allows for efficient iteration
+     * over child elements (underlying storage is guaranteed to
+     * be efficiently indexable, i.e. has random-access to elements).
+     * If index is less than 0, or equal-or-greater than
+     * <code>node.size()</code>, null is returned; no exception is
+     * thrown for any index.
+     *<p>
+     * NOTE: if the element value has been explicitly set as <code>null</code>
+     * (which is different from removal!),
+     * a {@link com.fasterxml.jackson.databind.node.NullNode} will be returned,
+     * not null.
+     *
+     * @return Node that represent value of the specified element,
+     *   if this node is an array and has specified element.
+     *   Null otherwise.
+     */
+    @Override
+    public abstract JsonNode get(int index);
+
+    /**
+     * Method for accessing value of the specified field of
+     * an object node. If this node is not an object (or it
+     * does not have a value for specified field name), or
+     * if there is no field with such name, null is returned.
+     *<p>
+     * NOTE: if the property value has been explicitly set as <code>null</code>
+     * (which is different from removal!),
+     * a {@link com.fasterxml.jackson.databind.node.NullNode} will be returned,
+     * not null.
+     *
+     * @return Node that represent value of the specified field,
+     *   if this node is an object and has value for the specified
+     *   field. Null otherwise.
+     */
+    @Override
+    public JsonNode get(String fieldName) { return null; }
+    /**
+     * This method is similar to {@link #get(String)}, except
+     * that instead of returning null if no such value exists (due
+     * to this node not being an object, or object not having value
+     * for the specified field),
+     * a "missing node" (node that returns true for
+     * {@link #isMissingNode}) will be returned. This allows for
+     * convenient and safe chained access via path calls.
+     */
+
+    @Override
+    public abstract JsonNode path(String fieldName);
+
+    /**
+     * This method is similar to {@link #get(int)}, except
+     * that instead of returning null if no such element exists (due
+     * to index being out of range, or this node not being an array),
+     * a "missing node" (node that returns true for
+     * {@link #isMissingNode}) will be returned. This allows for
+     * convenient and safe chained access via path calls.
+     */
+    @Override
+    public abstract JsonNode path(int index);
+
+    @Override
+    public Iterator<String> fieldNames() {
+        return EmptyIterator.instance();
+    }
+
     /*
     /**********************************************************
     /* Public API, type introspection
@@ -72,74 +187,10 @@ public abstract class JsonNode
      * Return the type of this node
      *
      * @return the node type as a {@link JsonNodeType} enum value
+     *
+     * @since 2.2
      */
     public abstract JsonNodeType getNodeType();
-
-    /**
-     * Method that returns true for all value nodes: ones that 
-     * are not containers, and that do not represent "missing" nodes
-     * in the path. Such value nodes represent String, Number, Boolean
-     * and null values from JSON.
-     *<p>
-     * Note: one and only one of methods {@link #isValueNode},
-     * {@link #isContainerNode} and {@link #isMissingNode} ever
-     * returns true for any given node.
-     */
-    public final boolean isValueNode()
-    {
-        switch (getNodeType()) {
-            case ARRAY: case OBJECT: case MISSING:
-                return false;
-            default:
-                return true;
-        }
-    }
-
-    /**
-     * Method that returns true for container nodes: Arrays and Objects.
-     *<p>
-     * Note: one and only one of methods {@link #isValueNode},
-     * {@link #isContainerNode} and {@link #isMissingNode} ever
-     * returns true for any given node.
-     */
-    public final boolean isContainerNode()
-    {
-        final JsonNodeType type = getNodeType();
-        return type == JsonNodeType.OBJECT || type == JsonNodeType.ARRAY;
-    }
-
-    /**
-     * Method that returns true for "virtual" nodes which represent
-     * missing entries constructed by path accessor methods when
-     * there is no actual node matching given criteria.
-     *<p>
-     * Note: one and only one of methods {@link #isValueNode},
-     * {@link #isContainerNode} and {@link #isMissingNode} ever
-     * returns true for any given node.
-     */
-    public final boolean isMissingNode()
-    {
-        return getNodeType() == JsonNodeType.MISSING;
-    }
-
-    // // Then more specific type introspection
-    // // (along with defaults to be overridden)
-
-    /**
-     * @return True if this node represents JSON Array
-     */
-    public final boolean isArray()
-    {
-        return getNodeType() == JsonNodeType.ARRAY;
-    }
-
-    /**
-     * @return True if this node represents JSON Object
-     */
-    public final boolean isObject()
-    {
-        return getNodeType() == JsonNodeType.OBJECT;
-    }
 
     /**
      * Method that can be used to check if the node is a wrapper
@@ -149,17 +200,14 @@ public abstract class JsonNode
      *
      * @return True if this node wraps a POJO
      */
-    public final boolean isPojo()
-    {
+    public final boolean isPojo() {
         return getNodeType() == JsonNodeType.POJO;
     }
 
     /**
-     * @return True if this node represents a numeric JSON
-     *   value
+     * @return True if this node represents a numeric JSON value
      */
-    public final boolean isNumber()
-    {
+    public final boolean isNumber() {
         return getNodeType() == JsonNodeType.NUMBER;
     }
 
@@ -175,6 +223,18 @@ public abstract class JsonNode
      *   numeric JSON value
      */
     public boolean isFloatingPointNumber() { return false; }
+
+    /**
+     * Method that can be used to check whether contained value
+     * is a number represented as Java <code>short</code>.
+     * Note, however, that even if this method returns false, it
+     * is possible that conversion would be possible from other numeric
+     * types -- to check if this is possible, use
+     * {@link #canConvertToInt()} instead.
+     * 
+     * @return True if the value contained by this node is stored as Java short
+     */
+    public boolean isShort() { return false; }
 
     /**
      * Method that can be used to check whether contained value
@@ -200,12 +260,20 @@ public abstract class JsonNode
      */
     public boolean isLong() { return false; }
 
+    /**
+     * @since 2.2
+     */
+    public boolean isFloat() { return false; }
+
     public boolean isDouble() { return false; }
     public boolean isBigDecimal() { return false; }
     public boolean isBigInteger() { return false; }
 
-    public final boolean isTextual()
-    {
+    /**
+     * Method that checks whether this node represents basic JSON String
+     * value.
+     */
+    public final boolean isTextual() {
         return getNodeType() == JsonNodeType.STRING;
     }
 
@@ -213,8 +281,7 @@ public abstract class JsonNode
      * Method that can be used to check if this node was created from
      * JSON boolean value (literals "true" and "false").
      */
-    public final boolean isBoolean()
-    {
+    public final boolean isBoolean() {
         return getNodeType() == JsonNodeType.BOOLEAN;
     }
 
@@ -222,8 +289,7 @@ public abstract class JsonNode
      * Method that can be used to check if this node was created from
      * JSON literal null value.
      */
-    public final boolean isNull()
-    {
+    public final boolean isNull() {
         return getNodeType() == JsonNodeType.NULL;
     }
 
@@ -235,29 +301,9 @@ public abstract class JsonNode
      *
      * @return True if this node represents base64 encoded binary data
      */
-    public final boolean isBinary()
-    {
+    public final boolean isBinary() {
         return getNodeType() == JsonNodeType.BINARY;
     }
-
-    /**
-     * Method that can be used for efficient type detection
-     * when using stream abstraction for traversing nodes.
-     * Will return the first {@link JsonToken} that equivalent
-     * stream event would produce (for most nodes there is just
-     * one token but for structured/container types multiple)
-     */
-    public abstract JsonToken asToken();
-
-    /**
-     * If this node is a numeric type (as per {@link #isNumber}),
-     * returns native type that node uses to store the numeric value;
-     * otherwise returns null.
-     * 
-     * @return Type of number contained, if any; or null if node does not
-     *  contain numeric value.
-     */
-    public abstract JsonParser.NumberType numberType();
 
     /**
      * Method that can be used to check whether this node is a numeric
@@ -309,8 +355,7 @@ public abstract class JsonNode
      * @return Binary data this node contains, iff it is a binary
      *   node; null otherwise
      */
-    public byte[] binaryValue() throws IOException
-    {
+    public byte[] binaryValue() throws IOException {
         return null;
     }
 
@@ -335,6 +380,18 @@ public abstract class JsonNode
     public Number numberValue() { return null; }
 
     /**
+     * Returns 16-bit short value for this node, <b>if and only if</b>
+     * this node is numeric ({@link #isNumber} returns true). For other
+     * types returns 0.
+     * For floating-point numbers, value is truncated using default
+     * Java coercion, similar to how cast from double to short operates.
+     *
+     * @return Short value this node contains, if any; 0 for non-number
+     *   nodes.
+     */
+    public short shortValue() { return 0; }
+
+    /**
      * Returns integer value for this node, <b>if and only if</b>
      * this node is numeric ({@link #isNumber} returns true). For other
      * types returns 0.
@@ -346,50 +403,46 @@ public abstract class JsonNode
      */
     public int intValue() { return 0; }
 
+    /**
+     * Returns 64-bit long value for this node, <b>if and only if</b>
+     * this node is numeric ({@link #isNumber} returns true). For other
+     * types returns 0.
+     * For floating-point numbers, value is truncated using default
+     * Java coercion, similar to how cast from double to long operates.
+     *
+     * @return Long value this node contains, if any; 0 for non-number
+     *   nodes.
+     */
     public long longValue() { return 0L; }
+    
+    /**
+     * Returns 32-bit floating value for this node, <b>if and only if</b>
+     * this node is numeric ({@link #isNumber} returns true). For other
+     * types returns 0.0.
+     * For integer values, conversion is done using coercion; this means
+     * that an overflow is possible for `long` values
+     *
+     * @return 32-bit float value this node contains, if any; 0.0 for non-number nodes.
+     *
+     * @since 2.2
+     */
+    public float floatValue() { return 0.0f; }
+
+    /**
+     * Returns 64-bit floating point (double) value for this node, <b>if and only if</b>
+     * this node is numeric ({@link #isNumber} returns true). For other
+     * types returns 0.0.
+     * For integer values, conversion is done using coercion; this may result
+     * in overflows with {@link BigInteger} values.
+     *
+     * @return 64-bit double value this node contains, if any; 0.0 for non-number nodes.
+     *
+     * @since 2.2
+     */
     public double doubleValue() { return 0.0; }
+
     public BigDecimal decimalValue() { return BigDecimal.ZERO; }
     public BigInteger bigIntegerValue() { return BigInteger.ZERO; }
-
-    /**
-     * Method for accessing value of the specified element of
-     * an array node. For other nodes, null is always returned.
-     *<p>
-     * For array nodes, index specifies
-     * exact location within array and allows for efficient iteration
-     * over child elements (underlying storage is guaranteed to
-     * be efficiently indexable, i.e. has random-access to elements).
-     * If index is less than 0, or equal-or-greater than
-     * <code>node.size()</code>, null is returned; no exception is
-     * thrown for any index.
-     *<p>
-     * NOTE: if the element value has been explicitly set as <code>null</code>
-     * (which is different from removal!),
-     * a {@link com.fasterxml.jackson.databind.node.NullNode} will be returned,
-     * not null.
-     *
-     * @return Node that represent value of the specified element,
-     *   if this node is an array and has specified element.
-     *   Null otherwise.
-     */
-    public abstract JsonNode get(int index);
-
-    /**
-     * Method for accessing value of the specified field of
-     * an object node. If this node is not an object (or it
-     * does not have a value for specified field name), or
-     * if there is no field with such name, null is returned.
-     *<p>
-     * NOTE: if the property value has been explicitly set as <code>null</code>
-     * (which is different from removal!),
-     * a {@link com.fasterxml.jackson.databind.node.NullNode} will be returned,
-     * not null.
-     *
-     * @return Node that represent value of the specified field,
-     *   if this node is an object and has value for the specified
-     *   field. Null otherwise.
-     */
-    public JsonNode get(String fieldName) { return null; }
     
     /*
     /**********************************************************
@@ -604,6 +657,44 @@ public abstract class JsonNode
         JsonNode n = get(index);
         return (n != null) && !n.isNull();
     }
+
+    /*
+    /**********************************************************
+    /* Public API, container access
+    /**********************************************************
+     */
+
+    /**
+     * Same as calling {@link #elements}; implemented so that
+     * convenience "for-each" loop can be used for looping over elements
+     * of JSON Array constructs.
+     */
+    @Override
+    public final Iterator<JsonNode> iterator() { return elements(); }
+
+    /**
+     * Method for accessing all value nodes of this Node, iff
+     * this node is a JSON Array or Object node. In case of Object node,
+     * field names (keys) are not included, only values.
+     * For other types of nodes, returns empty iterator.
+     */
+    public Iterator<JsonNode> elements() {
+        return EmptyIterator.instance();
+    }
+
+    /**
+     * @return Iterator that can be used to traverse all key/value pairs for
+     *   object nodes; empty iterator (no contents) for other types
+     */
+    public Iterator<Map.Entry<String, JsonNode>> fields() {
+        return EmptyIterator.instance();
+    }
+    
+    /*
+    /**********************************************************
+    /* Public API, find methods
+    /**********************************************************
+     */
     
     /**
      * Method for finding a JSON Object field with specified name in this
@@ -696,80 +787,9 @@ public abstract class JsonNode
 
     /*
     /**********************************************************
-    /* Public API, container access
-    /**********************************************************
-     */
-
-    /**
-     * Method that returns number of child nodes this node contains:
-     * for Array nodes, number of child elements, for Object nodes,
-     * number of fields, and for all other nodes 0.
-     *
-     * @return For non-container nodes returns 0; for arrays number of
-     *   contained elements, and for objects number of fields.
-     */
-    public int size() { return 0; }
-
-    /**
-     * Same as calling {@link #elements}; implemented so that
-     * convenience "for-each" loop can be used for looping over elements
-     * of JSON Array constructs.
-     */
-//  @Override
-    public final Iterator<JsonNode> iterator() { return elements(); }
-
-    /**
-     * Method for accessing all value nodes of this Node, iff
-     * this node is a JSON Array or Object node. In case of Object node,
-     * field names (keys) are not included, only values.
-     * For other types of nodes, returns empty iterator.
-     */
-    public Iterator<JsonNode> elements() {
-        return EmptyIterator.instance();
-    }
-
-    /**
-     * Method for accessing names of all fields for this Node, iff
-     * this node is a JSON Object node.
-     */
-    public Iterator<String> fieldNames() {
-        return EmptyIterator.instance();
-    }
-
-    /**
-     * @return Iterator that can be used to traverse all key/value pairs for
-     *   object nodes; empty iterator (no contents) for other types
-     */
-    public Iterator<Map.Entry<String, JsonNode>> fields() {
-        return EmptyIterator.instance();
-    }
-    
-    /*
-    /**********************************************************
     /* Public API, path handling
     /**********************************************************
      */
-
-    /**
-     * This method is similar to {@link #get(String)}, except
-     * that instead of returning null if no such value exists (due
-     * to this node not being an object, or object not having value
-     * for the specified field),
-     * a "missing node" (node that returns true for
-     * {@link #isMissingNode}) will be returned. This allows for
-     * convenient and safe chained access via path calls.
-     */
-    public abstract JsonNode path(String fieldName);
-
-    /**
-     * This method is similar to {@link #get(int)}, except
-     * that instead of returning null if no such element exists (due
-     * to index being out of range, or this node not being an array),
-     * a "missing node" (node that returns true for
-     * {@link #isMissingNode}) will be returned. This allows for
-     * convenient and safe chained access via path calls.
-     */
-    public abstract JsonNode path(int index);
 
     /**
      * Method that can be called on Object nodes, to access a property
@@ -796,22 +816,6 @@ public abstract class JsonNode
         throw new UnsupportedOperationException("JsonNode not of type ObjectNode (but "
                 +getClass().getName()+"), can not call withArray() on it");
     }
-    
-    /*
-    /**********************************************************
-    /* Public API: converting to/from Streaming API
-    /**********************************************************
-     */
-
-    /**
-     * Method for constructing a {@link JsonParser} instance for
-     * iterating over contents of the tree that this
-     * node is root of.
-     * Functionally equivalent to first serializing tree using
-     * {@link com.fasterxml.jackson.core.ObjectCodec} and then re-parsing but
-     * more efficient.
-     */
-    public abstract JsonParser traverse();
 
     /*
     /**********************************************************

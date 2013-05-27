@@ -128,6 +128,19 @@ public enum DeserializationFeature implements ConfigFeature
     FAIL_ON_NUMBERS_FOR_ENUMS(false),
 
     /**
+     * Feature that determines what happens when type of a polymorphic
+     * value (indicated for example by {@link com.fasterxml.jackson.annotation.JsonTypeInfo})
+     * can not be found (missing) or resolved (invalid class name, unmappable id);
+     * if enabled, an exception ir thrown; if false, null value is used instead.
+     *<p>
+     * Feature is enabled by default so that exception is thrown for missing or invalid
+     * type information.
+     * 
+     * @since 2.2
+     */
+    FAIL_ON_INVALID_SUBTYPE(true),
+    
+    /**
      * Feature that determines whether Jackson code should catch
      * and wrap {@link Exception}s (but never {@link Error}s!)
      * to add additional information about
@@ -162,7 +175,7 @@ public enum DeserializationFeature implements ConfigFeature
      * Feature is disabled by default.
      */
     ACCEPT_SINGLE_VALUE_AS_ARRAY(false),
-    
+
     /**
      * Feature to allow "unwrapping" root-level JSON value, to match setting of
      * {@link SerializationFeature#WRAP_ROOT_VALUE} used for serialization.
@@ -209,6 +222,35 @@ public enum DeserializationFeature implements ConfigFeature
      */
     READ_UNKNOWN_ENUM_VALUES_AS_NULL(false),
 
+    /**
+     * Feature that controls whether numeric timestamp values are expected
+     * to be written using nanosecond timestamps (enabled) or not (disabled),
+     * <b>if and only if</b> datatype supports such resolution.
+     * Only newer datatypes (such as Java8 Date/Time) support such resolution --
+     * older types (pre-Java8 <b>java.util.Date</b> etc) and Joda do not --
+     * and this setting <b>has no effect</b> on such types.
+     *<p>
+     * If disabled, standard millisecond timestamps are assumed.
+     * This is the counterpart to {@link SerializationFeature#WRITE_DATE_TIMESTAMPS_AS_NANOSECONDS}.
+     *<p>
+     * Feature is enabled by default, to support most accurate time values possible.
+     * 
+     * @since 2.2
+     */
+    READ_DATE_TIMESTAMPS_AS_NANOSECONDS(true),
+
+    /**
+     * Feature that specifies whether context provided {@link java.util.TimeZone}
+     * ({@link DeserializationContext#getTimeZone()} should be used to adjust Date/Time
+     * values on deserialization, even if value itself contains timezone information.
+     * If enabled, contextual <code>TimeZone</code> will essentially override any other
+     * TimeZone information; if disabled, it will only be used if value itself does not
+     * contain any TimeZone information.
+     * 
+     * @since 2.2
+     */
+    ADJUST_DATES_TO_CONTEXT_TIME_ZONE(true),
+
     /*
     /******************************************************
     /* Other
@@ -239,9 +281,9 @@ public enum DeserializationFeature implements ConfigFeature
         _defaultState = defaultState;
     }
 
-//  @Override
+    @Override
     public boolean enabledByDefault() { return _defaultState; }
 
-//  @Override
+    @Override
     public int getMask() { return (1 << ordinal()); }
 }

@@ -15,6 +15,8 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 public final class DecimalNode
     extends NumericNode
 {
+    public static final DecimalNode ZERO = new DecimalNode(BigDecimal.ZERO);
+
     private final static BigDecimal MIN_INTEGER = BigDecimal.valueOf(Integer.MIN_VALUE);
     private final static BigDecimal MAX_INTEGER = BigDecimal.valueOf(Integer.MAX_VALUE);
     private final static BigDecimal MIN_LONG = BigDecimal.valueOf(Long.MIN_VALUE);
@@ -66,6 +68,9 @@ public final class DecimalNode
     public Number numberValue() { return _value; }
 
     @Override
+    public short shortValue() { return _value.shortValue(); }
+
+    @Override
     public int intValue() { return _value.intValue(); }
 
     @Override
@@ -75,6 +80,9 @@ public final class DecimalNode
     @Override
     public BigInteger bigIntegerValue() { return _value.toBigInteger(); }
 
+    @Override
+    public float floatValue() { return _value.floatValue(); }
+    
     @Override
     public double doubleValue() { return _value.doubleValue(); }
 

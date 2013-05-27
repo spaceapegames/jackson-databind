@@ -14,7 +14,6 @@ import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
 import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonFormatVisitable;
 import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonFormatVisitorWrapper;
 import com.fasterxml.jackson.databind.jsonFormatVisitors.JsonObjectFormatVisitor;
-import com.fasterxml.jackson.databind.jsonschema.JsonSchema;
 import com.fasterxml.jackson.databind.jsonschema.SchemaAware;
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -104,8 +103,8 @@ public class EnumMapSerializer
         }
         return new EnumMapSerializer(this, prop, ser);
     }
-    
-//  @Override
+
+    @Override
     public JsonSerializer<?> createContextual(SerializerProvider provider,
             BeanProperty property)
         throws JsonMappingException
@@ -128,6 +127,8 @@ public class EnumMapSerializer
         if (ser == null) {
             ser = _valueSerializer;
         }
+        // #124: May have a content converter
+        ser = findConvertingContentSerializer(provider, property, ser);
         if (ser == null) {
             if (_staticTyping) {
                 return withValueSerializer(property, provider.findValueSerializer(_valueType, property));
@@ -307,7 +308,7 @@ public class EnumMapSerializer
                     JsonSerializer<Object> ser = provider.findValueSerializer(valueType.getRawClass(), _property);
                     JsonNode schemaNode = (ser instanceof SchemaAware) ?
                             ((SchemaAware) ser).getSchema(provider, null) :
-                            JsonSchema.getDefaultSchemaNode();
+                            	com.fasterxml.jackson.databind.jsonschema.JsonSchema.getDefaultSchemaNode();
                     propsNode.put(provider.getConfig().getAnnotationIntrospector().findEnumValue((Enum<?>)enumValue), schemaNode);
                 }
                 o.put("properties", propsNode);
