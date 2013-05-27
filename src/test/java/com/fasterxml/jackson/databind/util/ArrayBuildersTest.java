@@ -6,21 +6,8 @@ import com.fasterxml.jackson.databind.BaseMapTest;
 
 public class ArrayBuildersTest extends BaseMapTest
 {
-	@Test
-	public void testInsertInListNoDup() {
-		String [] arr = new String[]{"me", "you", "him"};
-		String [] newarr = ArrayBuilders.insertInListNoDup(arr, "you");		
-		Assert.assertArrayEquals(newarr, arr);
-		
-		newarr = ArrayBuilders.insertInListNoDup(arr, "me");
-		Assert.assertArrayEquals(newarr, arr);
-		
-		newarr = ArrayBuilders.insertInListNoDup(arr, "him");
-		Assert.assertArrayEquals(newarr, arr);
-	}
-
 	// Test for [Issue#157]
-	public void testInsertInListNoDup()
+	public void testInsertInListNoDup1()
 	{
         String [] arr = new String[]{"me", "you", "him"};
         String [] newarr;
