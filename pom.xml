@@ -18,7 +18,7 @@
 
 	<groupId>com.fasterxml.jackson.core</groupId>
 	<artifactId>jackson-databind</artifactId>
-	<version>2.2.1-spaceape-SNAPSHOT</version>
+	<version>2.2.1-spaceape</version>
 
 	<name>jackson-databind</name>
 	<description>General data-binding functionality for Jackson: works on core streaming API</description>
@@ -78,12 +78,12 @@
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-annotations</artifactId>
 			<!-- no new features for annotations yet -->
-			<version>2.2.1-spaceape-SNAPSHOT</version>
+			<version>2.2.1-spaceape</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-core</artifactId>
-			<version>2.2.1-spaceape-SNAPSHOT</version>
+			<version>2.2.1-spaceape</version>
 		</dependency>
 
 		<!-- and for testing, JUnit is needed, as well as quite a few libs for 
