@@ -332,7 +332,8 @@ public class POJOPropertiesCollector
         // And secondly by sorting Creator properties before other unordered properties
         if (_creatorProperties != null) {
             for (POJOPropertyBuilder prop : _creatorProperties) {
-                ordered.put(prop.getName(), prop);
+                if (!prop.anyIgnorals())
+                    ordered.put(prop.getName(), prop);
             }
         }
         // And finally whatever is left (trying to put again will not change ordering)
