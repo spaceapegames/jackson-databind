@@ -753,7 +753,7 @@ public class BeanSerializerFactory
         }
         // And how about polymorphic typing? First special to cover JAXB per-field settings:
         TypeSerializer contentTypeSer = null;
-        if (ClassUtil.isCollectionMapOrArray(type.getRawClass())) {
+        if (ClassUtil.isCollectionMapOrArray(type.getRawClass()) || type.isCollectionLikeType() || type.isMapLikeType()) {
             contentTypeSer = findPropertyContentTypeSerializer(type, prov.getConfig(), accessor);
         }
 
